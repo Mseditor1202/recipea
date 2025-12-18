@@ -16,7 +16,6 @@ import {
   ListItemText,
   InputAdornment,
   Chip,
-  Grid,
   MenuItem,
   FormControlLabel,
   Switch,
@@ -34,7 +33,6 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import RecipeImage from "@/components/recipes/RecipeImage";
-import RecipeCard from "@/components/recipes/RecipeCard";
 
 /** 週間ページの最大表示（2ヶ月 ≒ 8週） */
 const MAX_WEEKS = 8;
@@ -82,7 +80,7 @@ function ensureDayDoc(data) {
   };
 }
 
-/** ✅ category の揺れ吸収（Drawer絞り込み用） */
+/** category の揺れ吸収（Drawer絞り込み用） */
 function normalizeCategory(cat) {
   if (!cat) return "";
   const c = String(cat).toLowerCase();
@@ -142,30 +140,20 @@ function getDayKeyFromWeekAndDay(weekKey, dayKey) {
   return `${y}-${m}-${dd}`;
 }
 
-/** ✅ dailySets の4枠フィールド揺れ吸収 */
+/** dailySets の4枠フィールド揺れ吸収 */
 function readDailySetSlot(ds, slotKey) {
-  // slotKey: staple/main/side/soup（weeklyDaySets側）
   if (!ds) return null;
-
   if (slotKey === "staple") return ds.staple ?? null;
-
-  if (slotKey === "main") {
-    return ds.mainDish ?? ds.main ?? null;
-  }
-
-  if (slotKey === "side") {
-    return ds.sideDish ?? ds.side ?? null;
-  }
-
+  if (slotKey === "main") return ds.mainDish ?? ds.main ?? null;
+  if (slotKey === "side") return ds.sideDish ?? ds.side ?? null;
   if (slotKey === "soup") return ds.soup ?? null;
-
   return null;
 }
 
 export default function WeeklyPage() {
   const router = useRouter();
 
-  // ✅ hydration対策：mounted後に baseMonday を確定
+  // hydration対策：mounted後に baseMonday を確定
   const [mounted, setMounted] = useState(false);
   const [baseMonday, setBaseMonday] = useState(null);
 
@@ -183,7 +171,7 @@ export default function WeeklyPage() {
 
   // 週移動
   const [weekOffset, setWeekOffset] = useState(0);
-  // その週の中で「表示する1日」（見た目は1日だけ）
+  // その週の中で「表示する1日」
   const [selectedDayKey, setSelectedDayKey] = useState("mon");
 
   const weekKey = useMemo(() => {
@@ -208,7 +196,7 @@ export default function WeeklyPage() {
   const [recipeList, setRecipeList] = useState([]);
   const [recipeMap, setRecipeMap] = useState({});
 
-  // ✅ templates: dailySets（ここが本命）
+  // templates: dailySets
   const [dailySets, setDailySets] = useState([]);
 
   // Drawer
@@ -221,11 +209,10 @@ export default function WeeklyPage() {
   const [pickerSearch, setPickerSearch] = useState("");
   const [useCategoryFilter, setUseCategoryFilter] = useState(true);
 
-  // 初回：recipes + dailySets を取得
+  // 初回：recipes + dailySets
   useEffect(() => {
     const fetchCommon = async () => {
       try {
-        // recipes
         const rSnap = await getDocs(collection(db, "recipes"));
         const list = rSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         const map = {};
@@ -233,19 +220,17 @@ export default function WeeklyPage() {
         setRecipeList(list);
         setRecipeMap(map);
 
-        // ✅ dailySets（テンプレ）
         const dsSnap = await getDocs(collection(db, "dailySets"));
         const ds = dsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setDailySets(ds);
       } catch (e) {
         console.error(e);
-        // ここは画面自体は出せるので致命扱いにはしない
       }
     };
     fetchCommon();
   }, []);
 
-  // 日付(dateKey)が変わるたびに weeklyDaySets を読み込み
+  // dateKeyごとに weeklyDaySets を読み込み
   useEffect(() => {
     if (!dateKey) return;
 
@@ -257,11 +242,8 @@ export default function WeeklyPage() {
       try {
         const ref = doc(db, "weeklyDaySets", String(dateKey));
         const snap = await getDoc(ref);
-        if (snap.exists()) {
-          setDayDoc(ensureDayDoc(snap.data()));
-        } else {
-          setDayDoc(ensureDayDoc(null));
-        }
+        if (snap.exists()) setDayDoc(ensureDayDoc(snap.data()));
+        else setDayDoc(ensureDayDoc(null));
       } catch (e) {
         console.error(e);
         setErrorMsg("読み込みに失敗しました。");
@@ -277,7 +259,7 @@ export default function WeeklyPage() {
   const getRecipeName = (id) => recipeMap?.[id]?.recipeName || "未設定";
   const getRecipeImg = (id) => recipeMap?.[id]?.imageUrl || "";
 
-  // Drawer open
+  // Drawer
   const openPicker = (meal, slot) => {
     setPicker({ dateKey: String(dateKey), meal, slot });
     setPickerSearch("");
@@ -298,16 +280,15 @@ export default function WeeklyPage() {
     let list = recipeList;
 
     const q = (pickerSearch || "").trim().toLowerCase();
-    if (q) {
+    if (q)
       list = list.filter((r) => (r.recipeName || "").toLowerCase().includes(q));
-    }
 
     if (useCategoryFilter && picker.slot) {
       const filteredByCat = list.filter((r) => {
         const cat = normalizeCategory(r.category);
         return !r.category || cat === picker.slot;
       });
-      if (filteredByCat.length === 0) return list; // 0件なら全件
+      if (filteredByCat.length === 0) return list;
       return filteredByCat;
     }
 
@@ -372,16 +353,11 @@ export default function WeeklyPage() {
     }
   };
 
-  /**
-   * ✅ テンプレ（dailySets）適用
-   * dailySets: staple/mainDish/sideDish/soup を
-   * weeklyDaySets: staple/main/side/soup に変換して、朝昼夜それぞれへ一括反映
-   */
+  // テンプレ適用
   const handleApplyDailySetTemplate = async (mealKey, dailySetId) => {
     setErrorMsg("");
     setSaveMsg("");
 
-    // 解除
     if (!dailySetId) {
       setDayDoc((prev) => ({
         ...prev,
@@ -390,10 +366,7 @@ export default function WeeklyPage() {
 
       await setDoc(
         doc(db, "weeklyDaySets", String(dateKey)),
-        {
-          templateIds: { [mealKey]: "" },
-          updatedAt: serverTimestamp(),
-        },
+        { templateIds: { [mealKey]: "" }, updatedAt: serverTimestamp() },
         { merge: true }
       );
 
@@ -414,7 +387,6 @@ export default function WeeklyPage() {
       soup: readDailySetSlot(ds, "soup"),
     };
 
-    // 即反映
     setDayDoc((prev) => ({
       ...prev,
       [mealKey]: nextMeal,
@@ -446,7 +418,6 @@ export default function WeeklyPage() {
   const handleNextWeek = () =>
     setWeekOffset((p) => Math.min(MAX_WEEKS - 1, p + 1));
 
-  // hydration対策：SSR時は固定表示
   if (!mounted || !baseMonday || !weekKey || !dateKey) {
     return (
       <Box sx={{ p: 4 }}>
@@ -457,7 +428,7 @@ export default function WeeklyPage() {
 
   return (
     <Box sx={{ bgcolor: "#faf7f0", minHeight: "100vh", py: 4 }}>
-      <Box sx={{ mx: "auto", px: { xs: 1.5, sm: 2, md: 3 } }}>
+      <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 1.5, sm: 2, md: 3 } }}>
         <Stack spacing={2.5}>
           {/* Header */}
           <Stack
@@ -467,10 +438,10 @@ export default function WeeklyPage() {
           >
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                週間の献立（1日だけ表示）
+                週間レシピ登録
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                週を選んで、曜日タブで1日を切替。編集はDrawerで完結します。
+                編集したい週を選んで、曜日タブで1日ごとの献立ページを切替できます。
               </Typography>
             </Box>
 
@@ -485,10 +456,7 @@ export default function WeeklyPage() {
 
           {/* 週ナビ */}
           <Card
-            sx={{
-              borderRadius: 3,
-              boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
-            }}
+            sx={{ borderRadius: 3, boxShadow: "0 12px 30px rgba(0,0,0,0.06)" }}
           >
             <CardContent>
               <Stack
@@ -572,10 +540,7 @@ export default function WeeklyPage() {
 
           {/* 1day card */}
           <Card
-            sx={{
-              borderRadius: 3,
-              boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
-            }}
+            sx={{ borderRadius: 3, boxShadow: "0 12px 30px rgba(0,0,0,0.06)" }}
           >
             <CardContent>
               <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1 }}>
@@ -586,7 +551,7 @@ export default function WeeklyPage() {
               <Stack spacing={3}>
                 {MEALS.map((meal) => (
                   <Box key={meal.key}>
-                    {/* ✅ 朝昼夜：テンプレDropdown（dailySets） */}
+                    {/* 朝昼夜：テンプレDropdown */}
                     <Stack
                       direction={{ xs: "column", sm: "row" }}
                       justifyContent="space-between"
@@ -620,8 +585,18 @@ export default function WeeklyPage() {
                       </TextField>
                     </Stack>
 
-                    {/* slots */}
-                    <Grid container spacing={2}>
+                    {/* slots（CSS Gridで横幅完全統一） */}
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gap: 2,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          md: "repeat(4, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
                       {SLOTS.map((slot) => {
                         const recipeId = dayDoc?.[meal.key]?.[slot.key] || null;
                         const name = recipeId
@@ -630,91 +605,95 @@ export default function WeeklyPage() {
                         const img = recipeId ? getRecipeImg(recipeId) : "";
 
                         return (
-                          <Grid
-                            item
-                            xs={12}
-                            sm={6}
-                            md={3}
+                          <Card
                             key={`${meal.key}-${slot.key}`}
-                            sx={{ display: "flex" }}
+                            variant="outlined"
+                            sx={{
+                              width: "100%",
+                              height: 260,
+                              minWidth: 0,
+                              display: "flex",
+                              flexDirection: "column",
+                              borderRadius: 2.5,
+                              overflow: "hidden",
+                              borderColor: "#eee0cc",
+                              backgroundColor: "#fff",
+                            }}
                           >
-                            <Card
-                              variant="outlined"
+                            <Box sx={{ px: 1.25, pt: 1.25, pb: 0.75 }}>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontWeight: 800 }}
+                              >
+                                {slot.label}
+                              </Typography>
+                            </Box>
+
+                            <Box sx={{ px: 1.25 }}>
+                              <Box
+                                sx={{
+                                  width: "100%",
+                                  height: 120,
+                                  borderRadius: 2,
+                                  overflow: "hidden",
+                                  border: "1px solid #f0e6d6",
+                                }}
+                              >
+                                <RecipeImage
+                                  imageUrl={img}
+                                  title={name}
+                                  height={120}
+                                />
+                              </Box>
+                            </Box>
+
+                            <Box
                               sx={{
-                                width: "100%",
-                                minWidth: 0,
+                                px: 1.25,
+                                pt: 1,
+                                pb: 1.25,
                                 display: "flex",
                                 flexDirection: "column",
-                                borderRadius: 2.5,
-                                overflow: "hidden",
-                                height: "100%",
-                                borderColor: "#eee0cc",
-                                background: "#fff",
+                                flexGrow: 1,
+                                minHeight: 0,
                               }}
                             >
-                              <Box sx={{ px: 1.25, pt: 1.25, pb: 0.75 }}>
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                  sx={{ fontWeight: 800 }}
-                                >
-                                  {slot.label}
-                                </Typography>
-                              </Box>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 900,
+                                  lineHeight: 1.3,
+                                  display: "-webkit-box",
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: "vertical",
+                                  overflow: "hidden",
+                                  minHeight: 36,
+                                }}
+                                title={name}
+                              >
+                                {name}
+                              </Typography>
 
-                              {/* ✅ アイキャッチ：横幅いっぱい + 大きめ */}
-                              <Box sx={{ px: 1.25, pb: 1.25 }}>
-                                <Box
-                                  sx={{
-                                    width: "100%",
-                                    borderRadius: 2,
-                                    overflow: "hidden",
-                                    border: "1px solid #f0e6d6",
-                                  }}
-                                >
-                                  <RecipeImage
-                                    imageUrl={img}
-                                    title={name}
-                                    height={170}
-                                  />
-                                </Box>
-
-                                <Typography
-                                  variant="body2"
-                                  sx={{
-                                    mt: 1,
-                                    fontWeight: 900,
-                                    display: "-webkit-box",
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: "vertical",
-                                    overflow: "hidden",
-                                    minHeight: 40,
-                                  }}
-                                  title={name}
-                                >
-                                  {name}
-                                </Typography>
-
-                                <Button
-                                  fullWidth
-                                  variant="outlined"
-                                  size="small"
-                                  sx={{
-                                    mt: 1,
-                                    borderRadius: 999,
-                                    textTransform: "none",
-                                  }}
-                                  onClick={() => openPicker(meal.key, slot.key)}
-                                  disabled={saving || recipeList.length === 0}
-                                >
-                                  このレシピを変更
-                                </Button>
-                              </Box>
-                            </Card>
-                          </Grid>
+                              <Button
+                                fullWidth
+                                variant="outlined"
+                                size="small"
+                                sx={{
+                                  mt: "auto",
+                                  borderRadius: 999,
+                                  textTransform: "none",
+                                }}
+                                onClick={() => openPicker(meal.key, slot.key)}
+                                disabled={saving || recipeList.length === 0}
+                              >
+                                このレシピを変更
+                              </Button>
+                            </Box>
+                          </Card>
                         );
                       })}
-                    </Grid>
+                    </Box>
                   </Box>
                 ))}
               </Stack>
