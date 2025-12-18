@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo } from "react";
+// pages/recipes/dailyset/index.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
   Box,
@@ -19,7 +20,6 @@ import { db } from "@/lib/firebase";
 const COLLECTION_DAILY = "dailySets";
 const COLLECTION_RECIPES = "recipes";
 
-// ★ スロットキー＆ラベルを変更
 const SLOT_LABELS = {
   staple: "主食",
   mainDish: "主菜",
@@ -29,7 +29,7 @@ const SLOT_LABELS = {
 
 const DEFAULT_IMAGE = "/images/default-recipe.png";
 
-const DailySetsListPage = () => {
+export default function DailySetsListPage() {
   const router = useRouter();
   const [dailySets, setDailySets] = useState([]);
   const [recipesById, setRecipesById] = useState({});
@@ -43,7 +43,7 @@ const DailySetsListPage = () => {
       setError("");
 
       try {
-        // 1. dailySets を取得（新しい順）
+        // 1) dailySets 取得
         const dailySetsRef = collection(db, COLLECTION_DAILY);
         const qDaily = query(dailySetsRef, orderBy("createdAt", "desc"));
         const dailySnap = await getDocs(qDaily);
@@ -56,10 +56,9 @@ const DailySetsListPage = () => {
         setDailySets(dailyList);
         setLoading(false);
 
-        // 2. dailySets から必要な recipeId を全部集める
+        // 2) dailySets から必要 recipeId を収集
         const idSet = new Set();
         dailyList.forEach((setDoc) => {
-          // ★ 主食・主菜・副菜・汁物に対応
           ["staple", "mainDish", "sideDish", "soup"].forEach((slot) => {
             const recipeId = setDoc[slot];
             if (recipeId) idSet.add(recipeId);
@@ -77,7 +76,7 @@ const DailySetsListPage = () => {
         const allIds = Array.from(idSet);
         const recipesMap = {};
 
-        // Firestore の in 句は最大10件なので分割
+        // Firestore in 句は最大10件 → 分割
         const chunkSize = 10;
         const chunks = [];
         for (let i = 0; i < allIds.length; i += chunkSize) {
@@ -93,10 +92,7 @@ const DailySetsListPage = () => {
         const snapArray = await Promise.all(promises);
         snapArray.forEach((snap) => {
           snap.forEach((doc) => {
-            recipesMap[doc.id] = {
-              id: doc.id,
-              ...doc.data(),
-            };
+            recipesMap[doc.id] = { id: doc.id, ...doc.data() };
           });
         });
 
@@ -119,23 +115,20 @@ const DailySetsListPage = () => {
   );
 
   const handleCreateNew = () => {
-    // 新規作成ページ
     router.push("/recipes/dailyset/create");
   };
 
-  // ★ 追加：スロット単位でレシピを変更しに行く遷移
+  // ✅ スロット単位で recipes 一覧へ（セットモード）
   const handleChangeSlotRecipe = (dailySetId, slotKey) => {
     router.push(
       `/recipes?mode=dailySet&slot=${slotKey}&dailySetId=${dailySetId}`
     );
   };
 
-  // ★ 第3引数に dailySetId を追加
   const renderRecipeSlot = (slotKey, recipeId, dailySetId) => {
     const label = SLOT_LABELS[slotKey];
     const recipe = recipeId ? recipesById[recipeId] : null;
 
-    // まだレシピ一覧のロード中なら Skeleton
     if (loadingRecipes) {
       return (
         <Box>
@@ -152,19 +145,11 @@ const DailySetsListPage = () => {
       );
     }
 
-    // デバッグ用：IDはあるのにレシピがないときはコンソールに出しておく
-    if (recipeId && !recipe) {
-      console.warn("recipes に存在しないIDです:", recipeId);
-    }
-
     const hasRecipe = !!recipeId && !!recipe;
-
     const thumbnail = hasRecipe
       ? recipe.imageUrl || DEFAULT_IMAGE
       : DEFAULT_IMAGE;
-
     const title = hasRecipe ? recipe.recipeName || "名称未設定" : "未設定";
-
     const buttonLabel = hasRecipe ? "このレシピを変更" : "レシピをセット";
 
     return (
@@ -186,15 +171,31 @@ const DailySetsListPage = () => {
           }}
         />
 
-        <Typography variant="body2" noWrap title={title}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 700,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            minHeight: 40,
+          }}
+          title={title}
+        >
           {title}
         </Typography>
 
-        {/* ★ ここで直接レシピ一覧に飛ぶボタンを追加 */}
         <Button
           size="small"
+          fullWidth
           variant="outlined"
-          sx={{ mt: 0.5, textTransform: "none", fontSize: 11 }}
+          sx={{
+            mt: 0.75,
+            textTransform: "none",
+            fontSize: 11,
+            borderRadius: 999,
+          }}
           onClick={() => handleChangeSlotRecipe(dailySetId, slotKey)}
         >
           {buttonLabel}
@@ -205,7 +206,7 @@ const DailySetsListPage = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: "auto" }}>
-      {/* ヘッダー */}
+      {/* Header */}
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
@@ -214,8 +215,8 @@ const DailySetsListPage = () => {
         sx={{ mb: 3 }}
       >
         <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-            レシピセット一覧
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 800 }}>
+            献立レシピセット一覧
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             主食・主菜・副菜・汁物の組み合わせを「1食セット」として管理します。
@@ -245,7 +246,7 @@ const DailySetsListPage = () => {
         </Box>
       )}
 
-      {/* ローディング状態 */}
+      {/* Loading */}
       {loading && (
         <Grid container spacing={2}>
           {Array.from({ length: 4 }).map((_, i) => (
@@ -256,23 +257,12 @@ const DailySetsListPage = () => {
                   <Skeleton width="40%" sx={{ mt: 1 }} />
                   <Divider sx={{ my: 1.5 }} />
                   <Grid container spacing={1}>
-                    {/* 主食・主菜・副菜・汁物の4枠 */}
-                    <Grid item xs={3}>
-                      <Skeleton variant="rectangular" height={70} />
-                      <Skeleton width="60%" />
-                    </Grid>
-                    <Grid item xs={3}>
-                      <Skeleton variant="rectangular" height={70} />
-                      <Skeleton width="60%" />
-                    </Grid>
-                    <Grid item xs={3}>
-                      <Skeleton variant="rectangular" height={70} />
-                      <Skeleton width="60%" />
-                    </Grid>
-                    <Grid item xs={3}>
-                      <Skeleton variant="rectangular" height={70} />
-                      <Skeleton width="60%" />
-                    </Grid>
+                    {Array.from({ length: 4 }).map((__, j) => (
+                      <Grid item xs={3} key={j}>
+                        <Skeleton variant="rectangular" height={70} />
+                        <Skeleton width="60%" />
+                      </Grid>
+                    ))}
                   </Grid>
                   <Skeleton
                     width="50%"
@@ -286,15 +276,9 @@ const DailySetsListPage = () => {
         </Grid>
       )}
 
-      {/* データなし */}
+      {/* Empty */}
       {isEmpty && (
-        <Box
-          sx={{
-            mt: 4,
-            textAlign: "center",
-            color: "text.secondary",
-          }}
-        >
+        <Box sx={{ mt: 4, textAlign: "center", color: "text.secondary" }}>
           <Typography variant="body1" sx={{ mb: 1 }}>
             まだ献立レシピセットがありません。
           </Typography>
@@ -308,21 +292,27 @@ const DailySetsListPage = () => {
         </Box>
       )}
 
-      {/* 一覧 */}
+      {/* List */}
       {!loading && dailySets.length > 0 && (
         <Grid container spacing={2}>
           {dailySets.map((setDoc) => (
-            <Grid item xs={12} sm={6} md={4} key={setDoc.id}>
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={4}
+              key={setDoc.id}
+              sx={{ display: "flex" }}
+            >
               <Card
                 sx={{
                   height: "100%",
+                  width: "100%",
                   display: "flex",
                   flexDirection: "column",
                 }}
               >
-                <CardContent
-                  sx={{ flexGrow: 1, display: "flex", flexDirection: "column" }}
-                >
+                <CardContent sx={{ flexGrow: 1 }}>
                   <Stack
                     direction="row"
                     alignItems="center"
@@ -332,9 +322,9 @@ const DailySetsListPage = () => {
                     <Typography
                       variant="h6"
                       component="h2"
+                      sx={{ fontWeight: 800 }}
                       noWrap
                       title={setDoc.name}
-                      sx={{ fontWeight: 600 }}
                     >
                       {setDoc.name || "名称未設定セット"}
                     </Typography>
@@ -354,7 +344,6 @@ const DailySetsListPage = () => {
 
                   <Divider sx={{ my: 1.5 }} />
 
-                  {/* 主食・主菜・副菜・汁物の4カラム表示 */}
                   <Grid container spacing={1}>
                     <Grid item xs={3}>
                       {renderRecipeSlot("staple", setDoc.staple, setDoc.id)}
@@ -371,42 +360,30 @@ const DailySetsListPage = () => {
                   </Grid>
                 </CardContent>
 
-                {/* メモ + 編集ボタン */}
                 <Box
                   sx={{
                     p: 1.5,
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 2,
                     borderTop: "1px solid",
                     borderColor: "divider",
                   }}
                 >
-                  {/* メモ欄 */}
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ display: "block", mb: 0.25 }}
-                    >
-                      メモ
-                    </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mb: 0.25 }}
+                  >
+                    メモ
+                  </Typography>
 
-                    {setDoc.memo ? (
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          whiteSpace: "pre-line",
-                        }}
-                      >
-                        {setDoc.memo}
-                      </Typography>
-                    ) : (
-                      <Typography variant="body2" color="text.disabled">
-                        メモは未入力です
-                      </Typography>
-                    )}
-                  </Box>
+                  {setDoc.memo ? (
+                    <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
+                      {setDoc.memo}
+                    </Typography>
+                  ) : (
+                    <Typography variant="body2" color="text.disabled">
+                      メモは未入力です
+                    </Typography>
+                  )}
                 </Box>
               </Card>
             </Grid>
@@ -415,6 +392,4 @@ const DailySetsListPage = () => {
       )}
     </Box>
   );
-};
-
-export default DailySetsListPage;
+}

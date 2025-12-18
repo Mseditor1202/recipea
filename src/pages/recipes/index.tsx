@@ -28,8 +28,12 @@ import {
 /**
  * URLクエリでの利用モード
  * 1) 通常: /recipes
- * 2) weeklyDayセット用: /recipes?mode=weeklyDay&dayKey=YYYY-MM-DD&meal=breakfast&slot=main
- * 3) dailySet編集用(旧): /recipes?mode=dailyMeal&meal=breakfast&slot=mainDish&dailySetId=xxx
+ * 2) weeklyDayセット用:
+ *    /recipes?mode=weeklyDay&dayKey=YYYY-MM-DD&meal=breakfast&slot=main
+ * 3) dailySet編集用（新）:
+ *    /recipes?mode=dailySet&slot=mainDish&dailySetId=xxx
+ * 4) dailyMeal編集用（旧・互換）:
+ *    /recipes?mode=dailyMeal&meal=breakfast&slot=mainDish&dailySetId=xxx
  */
 
 // slot param の揺れ（mainDish/sideDish etc）を weeklyDaySets のキーへ正規化
@@ -79,7 +83,7 @@ const categoryLabels = {
   soup: "汁物",
 };
 
-const slotLabels = {
+const mealLabels = {
   breakfast: "朝",
   lunch: "昼",
   dinner: "夜",
@@ -96,7 +100,7 @@ export default function RecipesPage() {
   const query = router.query;
   const mode = query.mode;
 
-  // weeklyDay モード
+  // ✅ weeklyDay モード
   const isWeeklyDayMode =
     router.isReady &&
     mode === "weeklyDay" &&
@@ -110,7 +114,14 @@ export default function RecipesPage() {
     ? normalizeWeeklySlot(query.slot)
     : null; // staple/main/side/soup
 
-  // dailyMeal（旧 dailySet 用）
+  // ✅ dailySet（新）モード：dailySets を直接更新する
+  const isDailySetMode =
+    router.isReady && mode === "dailySet" && query.slot && query.dailySetId;
+
+  const dailySetIdNew = isDailySetMode ? String(query.dailySetId) : null;
+  const dailySetSlotKey = isDailySetMode ? String(query.slot) : null; // staple/mainDish/sideDish/soup
+
+  // ✅ dailyMeal（旧互換）モード：残すなら残す
   const isDailyMealMode =
     router.isReady &&
     mode === "dailyMeal" &&
@@ -118,7 +129,7 @@ export default function RecipesPage() {
     query.slot &&
     query.dailySetId;
 
-  const dailySetId = isDailyMealMode ? String(query.dailySetId) : null;
+  const dailySetIdOld = isDailyMealMode ? String(query.dailySetId) : null;
   const dailyMeal = isDailyMealMode ? String(query.meal) : null;
   const dailySlot = isDailyMealMode ? String(query.slot) : null;
 
@@ -144,16 +155,31 @@ export default function RecipesPage() {
   const filtered = useMemo(() => {
     let list = recipes;
 
-    // weeklyDay / dailyMeal ではスロットに応じてカテゴリ絞り（あれば）
+    // weeklyDay は slot に応じてカテゴリ絞り（あれば）
     if (isWeeklyDayMode && weeklySlotKey) {
       list = list.filter((r) => {
         const c = normalizeRecipeCategory(r.category);
-        // category 未設定は一応通す（ユーザーのデータが揃ってない場合の救済）
         return !r.category || c === weeklySlotKey;
       });
     }
 
-    // dailyMeal（旧）: mainDish → main 等に合わせて絞る
+    // dailySet（新）も slot に応じてカテゴリ絞り（mainDish/sideDish → main/side）
+    if (isDailySetMode && dailySetSlotKey) {
+      const slotToCat = {
+        staple: "staple",
+        mainDish: "main",
+        sideDish: "side",
+        soup: "soup",
+      };
+      const target =
+        slotToCat[dailySetSlotKey] || normalizeWeeklySlot(dailySetSlotKey);
+      list = list.filter((r) => {
+        const c = normalizeRecipeCategory(r.category);
+        return !r.category || c === target;
+      });
+    }
+
+    // dailyMeal（旧互換）
     if (isDailyMealMode && dailySlot) {
       const slotToCat = {
         staple: "staple",
@@ -177,6 +203,8 @@ export default function RecipesPage() {
     searchText,
     isWeeklyDayMode,
     weeklySlotKey,
+    isDailySetMode,
+    dailySetSlotKey,
     isDailyMealMode,
     dailySlot,
   ]);
@@ -197,7 +225,6 @@ export default function RecipesPage() {
         { merge: true }
       );
 
-      // 戻り先：Drawer方式のページに戻す（week/day）
       router.push(`/recipes/weekly/day/${weeklyDayKey}`);
     } catch (e) {
       console.error(e);
@@ -205,10 +232,31 @@ export default function RecipesPage() {
     }
   };
 
-  // ✅ dailyMeal（旧）: 既存仕様どおり dailyset 編集ページへクエリで渡す
-  const handleSelectForDailySet = (recipeId) => {
+  // ✅ dailySet（新）: 選択 → dailySets に保存して一覧へ戻る
+  const handleSelectForDailySetNew = async (recipeId) => {
+    if (!dailySetIdNew || !dailySetSlotKey) return;
+
+    try {
+      await setDoc(
+        doc(db, "dailySets", dailySetIdNew),
+        {
+          [dailySetSlotKey]: recipeId,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      router.push("/recipes/dailyset");
+    } catch (e) {
+      console.error(e);
+      alert("レシピのセットに失敗しました。");
+    }
+  };
+
+  // ✅ dailyMeal（旧互換）: 既存仕様どおり
+  const handleSelectForDailySetOld = (recipeId) => {
     router.push(
-      `/recipes/dailyset/${dailySetId}?meal=${dailyMeal}&slot=${dailySlot}&recipeId=${recipeId}`
+      `/recipes/dailyset/${dailySetIdOld}?meal=${dailyMeal}&slot=${dailySlot}&recipeId=${recipeId}`
     );
   };
 
@@ -218,24 +266,42 @@ export default function RecipesPage() {
 
   const titleText = useMemo(() => {
     if (isWeeklyDayMode) {
-      return `「${slotLabels[weeklyMealKey] || ""}」の ${
+      return `「${mealLabels[weeklyMealKey] || ""}」の ${
         categoryLabels[weeklySlotKey] || weeklySlotKey
       } を選択`;
     }
+    if (isDailySetMode) {
+      const label =
+        { staple: "主食", mainDish: "主菜", sideDish: "副菜", soup: "汁物" }[
+          dailySetSlotKey
+        ] || dailySetSlotKey;
+      return `献立レシピセット：${label} を選択`;
+    }
     if (isDailyMealMode) {
-      return `「${slotLabels[dailyMeal] || ""}」の ${dailySlot} を選択`;
+      return `「${mealLabels[dailyMeal] || ""}」の ${dailySlot} を選択`;
     }
     return "レシピ一覧";
   }, [
     isWeeklyDayMode,
     weeklyMealKey,
     weeklySlotKey,
+    isDailySetMode,
+    dailySetSlotKey,
     isDailyMealMode,
     dailyMeal,
     dailySlot,
   ]);
 
-  const showSelectInfo = isWeeklyDayMode || isDailyMealMode;
+  const showSelectInfo = isWeeklyDayMode || isDailySetMode || isDailyMealMode;
+
+  const handleBack = () => {
+    if (isWeeklyDayMode)
+      return router.push(`/recipes/weekly/day/${weeklyDayKey}`);
+    if (isDailySetMode) return router.push("/recipes/dailyset");
+    if (isDailyMealMode)
+      return router.push(`/recipes/dailyset/${dailySetIdOld}`);
+    return router.back();
+  };
 
   return (
     <Box
@@ -251,11 +317,11 @@ export default function RecipesPage() {
           {titleText}
         </Typography>
 
-        {isWeeklyDayMode && (
+        {showSelectInfo && (
           <Button
             variant="outlined"
             sx={{ borderRadius: 999, textTransform: "none" }}
-            onClick={() => router.push(`/recipes/weekly/day/${weeklyDayKey}`)}
+            onClick={handleBack}
           >
             戻る
           </Button>
@@ -264,8 +330,8 @@ export default function RecipesPage() {
 
       {showSelectInfo && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          セットするレシピを選んでください。（カテゴリで自動絞り込み中：合わない場合はレシピの
-          category を確認してね）
+          セットするレシピを選んでください。（カテゴリで自動絞り込み中：合わない場合は
+          recipes の category を確認してね）
         </Alert>
       )}
 
@@ -295,7 +361,7 @@ export default function RecipesPage() {
               sm={6}
               md={4}
               key={recipe.id}
-              sx={{ display: "flex" }} // ✅ カードの横幅・高さが安定
+              sx={{ display: "flex" }}
             >
               <Card
                 sx={{
@@ -303,20 +369,21 @@ export default function RecipesPage() {
                   borderRadius: 2.5,
                   overflow: "hidden",
                   boxSizing: "border-box",
+                  display: "flex",
+                  flexDirection: "column",
                 }}
               >
                 <RecipeImage
                   imageUrl={recipe.imageUrl}
                   title={recipe.recipeName}
-                  height={180} // ✅ ここで統一
+                  height={180}
                 />
 
-                <CardContent>
+                <CardContent sx={{ flexGrow: 1 }}>
                   <Typography variant="h6" sx={{ fontWeight: 800 }}>
                     {recipe.recipeName}
                   </Typography>
 
-                  {/* カテゴリ & 調理時間 */}
                   <Stack
                     direction="row"
                     spacing={1}
@@ -339,9 +406,7 @@ export default function RecipesPage() {
                   </Stack>
                 </CardContent>
 
-                <CardActions
-                  sx={{ justifyContent: "space-between", px: 2, pb: 2 }}
-                >
+                <CardActions sx={{ px: 2, pb: 2 }}>
                   {isWeeklyDayMode ? (
                     <Button
                       fullWidth
@@ -351,18 +416,28 @@ export default function RecipesPage() {
                     >
                       このレシピをセット
                     </Button>
+                  ) : isDailySetMode ? (
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      sx={{ borderRadius: 999, textTransform: "none" }}
+                      onClick={() => handleSelectForDailySetNew(recipe.id)}
+                    >
+                      このレシピをセット
+                    </Button>
                   ) : isDailyMealMode ? (
                     <Button
                       fullWidth
                       variant="contained"
                       sx={{ borderRadius: 999, textTransform: "none" }}
-                      onClick={() => handleSelectForDailySet(recipe.id)}
+                      onClick={() => handleSelectForDailySetOld(recipe.id)}
                     >
                       このレシピをセット
                     </Button>
                   ) : (
-                    <Stack direction="row" spacing={1}>
+                    <Stack direction="row" spacing={1} sx={{ width: "100%" }}>
                       <Button
+                        fullWidth
                         variant="outlined"
                         size="small"
                         sx={{ borderRadius: 999, textTransform: "none" }}
@@ -373,6 +448,7 @@ export default function RecipesPage() {
 
                       {canEdit && (
                         <Button
+                          fullWidth
                           variant="contained"
                           size="small"
                           sx={{ borderRadius: 999, textTransform: "none" }}

@@ -2,17 +2,32 @@
 import React from "react";
 import { Box } from "@mui/material";
 
-export default function RecipeImage({ imageUrl, title, height = 180 }) {
+const HEIGHTS = {
+  thumb: 120, // 一覧の小
+  card: 180, // 週間/日編集のカード
+  hero: 300, // 詳細など大
+};
+
+export default function RecipeImage({
+  imageUrl,
+  title,
+  variant = "card", // "thumb" | "card" | "hero"
+  height, // 例外的に上書きしたい時だけ
+  sx,
+}) {
   const defaultImage = "/images/default-recipe.png";
   const src = imageUrl || defaultImage;
+
+  const fixedHeight = height ?? HEIGHTS[variant] ?? 180;
 
   return (
     <Box
       sx={{
         width: "100%",
-        height,
+        height: fixedHeight,
         overflow: "hidden",
         backgroundColor: "#F9F4E8",
+        ...sx,
       }}
     >
       <Box

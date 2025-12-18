@@ -34,6 +34,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import RecipeImage from "@/components/recipes/RecipeImage";
+import RecipeCard from "@/components/recipes/RecipeCard";
 
 /** 週間ページの最大表示（2ヶ月 ≒ 8週） */
 const MAX_WEEKS = 8;
@@ -456,7 +457,7 @@ export default function WeeklyPage() {
 
   return (
     <Box sx={{ bgcolor: "#faf7f0", minHeight: "100vh", py: 4 }}>
-      <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 1.5, sm: 2, md: 3 } }}>
+      <Box sx={{ mx: "auto", px: { xs: 1.5, sm: 2, md: 3 } }}>
         <Stack spacing={2.5}>
           {/* Header */}
           <Stack
@@ -635,10 +636,15 @@ export default function WeeklyPage() {
                             sm={6}
                             md={3}
                             key={`${meal.key}-${slot.key}`}
+                            sx={{ display: "flex" }}
                           >
                             <Card
                               variant="outlined"
                               sx={{
+                                width: "100%",
+                                minWidth: 0,
+                                display: "flex",
+                                flexDirection: "column",
                                 borderRadius: 2.5,
                                 overflow: "hidden",
                                 height: "100%",
@@ -682,6 +688,7 @@ export default function WeeklyPage() {
                                     WebkitLineClamp: 2,
                                     WebkitBoxOrient: "vertical",
                                     overflow: "hidden",
+                                    minHeight: 40,
                                   }}
                                   title={name}
                                 >
