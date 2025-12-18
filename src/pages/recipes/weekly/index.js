@@ -20,9 +20,14 @@ import {
   FormControlLabel,
   Switch,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
-import { ArrowBack, ArrowForward } from "@mui/icons-material";
+import { ArrowBack, ArrowForward, Add } from "@mui/icons-material";
 import {
   doc,
   getDoc,
@@ -30,9 +35,19 @@ import {
   collection,
   setDoc,
   serverTimestamp,
+  addDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import RecipeImage from "@/components/recipes/RecipeImage";
+
+/** 曜日キーを取得する */
+function getTodayDayKey() {
+  const today = new Date();
+  const day = today.getDay(); // 0(日)〜6(土)
+
+  const map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return map[day];
+}
 
 /** 週間ページの最大表示（2ヶ月 ≒ 8週） */
 const MAX_WEEKS = 8;
@@ -80,7 +95,7 @@ function ensureDayDoc(data) {
   };
 }
 
-/** category の揺れ吸収（Drawer絞り込み用） */
+/** ✅ category の揺れ吸収（Drawer絞り込み用） */
 function normalizeCategory(cat) {
   if (!cat) return "";
   const c = String(cat).toLowerCase();
@@ -140,7 +155,7 @@ function getDayKeyFromWeekAndDay(weekKey, dayKey) {
   return `${y}-${m}-${dd}`;
 }
 
-/** dailySets の4枠フィールド揺れ吸収 */
+/** ✅ dailySets の4枠フィールド揺れ吸収（dailySets → weeklyDaySets比較用） */
 function readDailySetSlot(ds, slotKey) {
   if (!ds) return null;
   if (slotKey === "staple") return ds.staple ?? null;
@@ -153,7 +168,7 @@ function readDailySetSlot(ds, slotKey) {
 export default function WeeklyPage() {
   const router = useRouter();
 
-  // hydration対策：mounted後に baseMonday を確定
+  // ✅ hydration対策：mounted後に baseMonday を確定
   const [mounted, setMounted] = useState(false);
   const [baseMonday, setBaseMonday] = useState(null);
 
@@ -172,7 +187,7 @@ export default function WeeklyPage() {
   // 週移動
   const [weekOffset, setWeekOffset] = useState(0);
   // その週の中で「表示する1日」
-  const [selectedDayKey, setSelectedDayKey] = useState("mon");
+  const [selectedDayKey, setSelectedDayKey] = useState(getTodayDayKey());
 
   const weekKey = useMemo(() => {
     if (!baseMonday) return null;
@@ -208,6 +223,12 @@ export default function WeeklyPage() {
   });
   const [pickerSearch, setPickerSearch] = useState("");
   const [useCategoryFilter, setUseCategoryFilter] = useState(true);
+
+  // ✅ 新テンプレ作成Dialog
+  const [createTplOpen, setCreateTplOpen] = useState(false);
+  const [createTplMealKey, setCreateTplMealKey] = useState(null); // breakfast/lunch/dinner
+  const [createTplName, setCreateTplName] = useState("");
+  const [createTplError, setCreateTplError] = useState("");
 
   // 初回：recipes + dailySets
   useEffect(() => {
@@ -288,7 +309,7 @@ export default function WeeklyPage() {
         const cat = normalizeCategory(r.category);
         return !r.category || cat === picker.slot;
       });
-      if (filteredByCat.length === 0) return list;
+      if (filteredByCat.length === 0) return list; // 0件なら全件
       return filteredByCat;
     }
 
@@ -358,19 +379,30 @@ export default function WeeklyPage() {
     setErrorMsg("");
     setSaveMsg("");
 
+    // 解除
     if (!dailySetId) {
       setDayDoc((prev) => ({
         ...prev,
         templateIds: { ...prev.templateIds, [mealKey]: "" },
       }));
 
-      await setDoc(
-        doc(db, "weeklyDaySets", String(dateKey)),
-        { templateIds: { [mealKey]: "" }, updatedAt: serverTimestamp() },
-        { merge: true }
-      );
-
-      setSaveMsg("テンプレを解除しました。");
+      try {
+        setSaving(true);
+        await setDoc(
+          doc(db, "weeklyDaySets", String(dateKey)),
+          {
+            templateIds: { [mealKey]: "" },
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        setSaveMsg("テンプレを解除しました。");
+      } catch (e) {
+        console.error(e);
+        setErrorMsg("テンプレ解除に失敗しました。");
+      } finally {
+        setSaving(false);
+      }
       return;
     }
 
@@ -387,6 +419,7 @@ export default function WeeklyPage() {
       soup: readDailySetSlot(ds, "soup"),
     };
 
+    // 即反映
     setDayDoc((prev) => ({
       ...prev,
       [mealKey]: nextMeal,
@@ -413,11 +446,108 @@ export default function WeeklyPage() {
     }
   };
 
+  // ✅ 「テンプレから一部変更されたか？」を meal単位で判定
+  const isMealDirtyFromTemplate = (mealKey) => {
+    const tplId = dayDoc?.templateIds?.[mealKey];
+    if (!tplId) return false; // テンプレ未使用なら出さない（仕様）
+    const ds = dailySets.find((x) => x.id === tplId);
+    if (!ds) return false;
+
+    const meal = dayDoc?.[mealKey] || emptyMeal();
+    const a = (v) => v ?? null;
+
+    const sameStaple = a(meal.staple) === a(readDailySetSlot(ds, "staple"));
+    const sameMain = a(meal.main) === a(readDailySetSlot(ds, "main"));
+    const sameSide = a(meal.side) === a(readDailySetSlot(ds, "side"));
+    const sameSoup = a(meal.soup) === a(readDailySetSlot(ds, "soup"));
+
+    return !(sameStaple && sameMain && sameSide && sameSoup);
+  };
+
+  // ✅ 新テンプレ作成（ダイアログ起動）
+  const openCreateTemplateDialog = (mealKey) => {
+    const mealLabel = MEALS.find((m) => m.key === mealKey)?.label || mealKey;
+    setCreateTplMealKey(mealKey);
+    setCreateTplName(`${dateKey} ${mealLabel} テンプレ`);
+    setCreateTplError("");
+    setCreateTplOpen(true);
+  };
+
+  const closeCreateTemplateDialog = () => {
+    setCreateTplOpen(false);
+    setCreateTplMealKey(null);
+    setCreateTplName("");
+    setCreateTplError("");
+  };
+
+  // ✅ dailySets に追加して、その meal の templateIds を新IDに差し替え
+  const handleCreateTemplate = async () => {
+    if (!createTplMealKey) return;
+
+    const name = (createTplName || "").trim();
+    if (!name) {
+      setCreateTplError("テンプレ名を入力してね。");
+      return;
+    }
+
+    const meal = dayDoc?.[createTplMealKey] || emptyMeal();
+
+    // dailySets は staple/mainDish/sideDish/soup で保存する（今までの運用に寄せる）
+    const payload = {
+      name,
+      memo: "",
+      staple: meal.staple ?? null,
+      mainDish: meal.main ?? null,
+      sideDish: meal.side ?? null,
+      soup: meal.soup ?? null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    setErrorMsg("");
+    setSaveMsg("");
+
+    try {
+      setSaving(true);
+
+      // 1) dailySets に追加
+      const ref = await addDoc(collection(db, "dailySets"), payload);
+      const newId = ref.id;
+
+      // 2) ローカルの dailySets も更新（即反映）
+      setDailySets((prev) => [{ id: newId, ...payload }, ...prev]);
+
+      // 3) weeklyDaySets の templateIds を新テンプレに差し替え
+      setDayDoc((prev) => ({
+        ...prev,
+        templateIds: { ...prev.templateIds, [createTplMealKey]: newId },
+      }));
+
+      await setDoc(
+        doc(db, "weeklyDaySets", String(dateKey)),
+        {
+          templateIds: { [createTplMealKey]: newId },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      setSaveMsg("新しい献立テンプレを登録しました。");
+      closeCreateTemplateDialog();
+    } catch (e) {
+      console.error(e);
+      setErrorMsg("テンプレ登録に失敗しました。");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // 週移動
   const handlePrevWeek = () => setWeekOffset((p) => Math.max(0, p - 1));
   const handleNextWeek = () =>
     setWeekOffset((p) => Math.min(MAX_WEEKS - 1, p + 1));
 
+  // hydration対策
   if (!mounted || !baseMonday || !weekKey || !dateKey) {
     return (
       <Box sx={{ p: 4 }}>
@@ -441,7 +571,7 @@ export default function WeeklyPage() {
                 週間レシピ登録
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                編集したい週を選んで、曜日タブで1日ごとの献立ページを切替できます。
+                週を選んで、曜日タブで1日を切替。編集はDrawerで完結します。
               </Typography>
             </Box>
 
@@ -527,16 +657,9 @@ export default function WeeklyPage() {
               読み込み中...
             </Typography>
           )}
-          {errorMsg && (
-            <Typography variant="body2" color="error">
-              {errorMsg}
-            </Typography>
-          )}
-          {saveMsg && (
-            <Typography variant="body2" color="success.main">
-              {saveMsg}
-            </Typography>
-          )}
+
+          {errorMsg && <Alert severity="error">{errorMsg}</Alert>}
+          {saveMsg && <Alert severity="success">{saveMsg}</Alert>}
 
           {/* 1day card */}
           <Card
@@ -549,153 +672,187 @@ export default function WeeklyPage() {
               <Divider sx={{ mb: 2 }} />
 
               <Stack spacing={3}>
-                {MEALS.map((meal) => (
-                  <Box key={meal.key}>
-                    {/* 朝昼夜：テンプレDropdown */}
-                    <Stack
-                      direction={{ xs: "column", sm: "row" }}
-                      justifyContent="space-between"
-                      alignItems={{ xs: "flex-start", sm: "center" }}
-                      spacing={1}
-                      sx={{ mb: 1 }}
-                    >
-                      <Typography sx={{ fontWeight: 900 }}>
-                        {meal.icon} {meal.label}
-                      </Typography>
+                {MEALS.map((meal) => {
+                  const dirty = isMealDirtyFromTemplate(meal.key);
 
-                      <TextField
-                        select
-                        size="small"
-                        label="献立テンプレ（献立レシピセット）"
-                        value={dayDoc?.templateIds?.[meal.key] ?? ""}
-                        onChange={(e) =>
-                          handleApplyDailySetTemplate(meal.key, e.target.value)
-                        }
-                        sx={{ width: { xs: "100%", sm: 360 } }}
-                        disabled={saving || dailySets.length === 0}
+                  return (
+                    <Box key={meal.key}>
+                      {/* 朝昼夜：テンプレDropdown + dirty時ボタン */}
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        justifyContent="space-between"
+                        alignItems={{ xs: "flex-start", sm: "center" }}
+                        spacing={1}
+                        sx={{ mb: 1 }}
                       >
-                        <MenuItem value="">
-                          <em>テンプレ未使用</em>
-                        </MenuItem>
-                        {dailySets.map((t) => (
-                          <MenuItem key={t.id} value={t.id}>
-                            {t.name || "名前なしセット"}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </Stack>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {meal.icon} {meal.label}
+                        </Typography>
 
-                    {/* slots（CSS Gridで横幅完全統一） */}
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gap: 2,
-                        gridTemplateColumns: {
-                          xs: "1fr",
-                          sm: "repeat(2, minmax(0, 1fr))",
-                          md: "repeat(4, minmax(0, 1fr))",
-                        },
-                      }}
-                    >
-                      {SLOTS.map((slot) => {
-                        const recipeId = dayDoc?.[meal.key]?.[slot.key] || null;
-                        const name = recipeId
-                          ? getRecipeName(recipeId)
-                          : "未設定";
-                        const img = recipeId ? getRecipeImg(recipeId) : "";
-
-                        return (
-                          <Card
-                            key={`${meal.key}-${slot.key}`}
-                            variant="outlined"
-                            sx={{
-                              width: "100%",
-                              height: 260,
-                              minWidth: 0,
-                              display: "flex",
-                              flexDirection: "column",
-                              borderRadius: 2.5,
-                              overflow: "hidden",
-                              borderColor: "#eee0cc",
-                              backgroundColor: "#fff",
-                            }}
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1}
+                          alignItems={{ xs: "stretch", sm: "center" }}
+                          sx={{ width: { xs: "100%", sm: "auto" } }}
+                        >
+                          <TextField
+                            select
+                            size="small"
+                            label="献立テンプレ（献立レシピセット）"
+                            value={dayDoc?.templateIds?.[meal.key] ?? ""}
+                            onChange={(e) =>
+                              handleApplyDailySetTemplate(
+                                meal.key,
+                                e.target.value
+                              )
+                            }
+                            sx={{ width: { xs: "100%", sm: 360 } }}
+                            disabled={saving || dailySets.length === 0}
                           >
-                            <Box sx={{ px: 1.25, pt: 1.25, pb: 0.75 }}>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{ fontWeight: 800 }}
-                              >
-                                {slot.label}
-                              </Typography>
-                            </Box>
+                            <MenuItem value="">
+                              <em>テンプレ未使用</em>
+                            </MenuItem>
+                            {dailySets.map((t) => (
+                              <MenuItem key={t.id} value={t.id}>
+                                {t.name || "名前なしセット"}
+                              </MenuItem>
+                            ))}
+                          </TextField>
 
-                            <Box sx={{ px: 1.25 }}>
-                              <Box
-                                sx={{
-                                  width: "100%",
-                                  height: 120,
-                                  borderRadius: 2,
-                                  overflow: "hidden",
-                                  border: "1px solid #f0e6d6",
-                                }}
-                              >
-                                <RecipeImage
-                                  imageUrl={img}
-                                  title={name}
-                                  height={120}
-                                />
-                              </Box>
-                            </Box>
-
-                            <Box
+                          {dirty && (
+                            <Button
+                              variant="contained"
+                              startIcon={<Add />}
                               sx={{
-                                px: 1.25,
-                                pt: 1,
-                                pb: 1.25,
+                                borderRadius: 999,
+                                textTransform: "none",
+                                whiteSpace: "nowrap",
+                              }}
+                              onClick={() => openCreateTemplateDialog(meal.key)}
+                              disabled={saving}
+                            >
+                              新しい献立を登録する？
+                            </Button>
+                          )}
+                        </Stack>
+                      </Stack>
+
+                      {/* ✅ ここが「横幅を揃える」本体：GridじゃなくCSS gridで均等割り */}
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 2,
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            sm: "repeat(2, minmax(0, 1fr))",
+                            md: "repeat(4, minmax(0, 1fr))",
+                          },
+                        }}
+                      >
+                        {SLOTS.map((slot) => {
+                          const recipeId =
+                            dayDoc?.[meal.key]?.[slot.key] || null;
+                          const name = recipeId
+                            ? getRecipeName(recipeId)
+                            : "未設定";
+                          const img = recipeId ? getRecipeImg(recipeId) : "";
+
+                          return (
+                            <Card
+                              key={`${meal.key}-${slot.key}`}
+                              variant="outlined"
+                              sx={{
+                                width: "100%",
+                                height: 260, // ✅ “全カード同じ大きさ”はこれが最強
+                                minWidth: 0,
                                 display: "flex",
                                 flexDirection: "column",
-                                flexGrow: 1,
-                                minHeight: 0,
+                                borderRadius: 2.5,
+                                overflow: "hidden",
+                                borderColor: "#eee0cc",
+                                backgroundColor: "#fff",
                               }}
                             >
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 900,
-                                  lineHeight: 1.3,
-                                  display: "-webkit-box",
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: "vertical",
-                                  overflow: "hidden",
-                                  minHeight: 36,
-                                }}
-                                title={name}
-                              >
-                                {name}
-                              </Typography>
+                              {/* ラベル */}
+                              <Box sx={{ px: 1.25, pt: 1.25, pb: 0.75 }}>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ fontWeight: 800 }}
+                                >
+                                  {slot.label}
+                                </Typography>
+                              </Box>
 
-                              <Button
-                                fullWidth
-                                variant="outlined"
-                                size="small"
+                              {/* 画像（固定高） */}
+                              <Box sx={{ px: 1.25 }}>
+                                <Box
+                                  sx={{
+                                    width: "100%",
+                                    height: 120,
+                                    borderRadius: 2,
+                                    overflow: "hidden",
+                                    border: "1px solid #f0e6d6",
+                                  }}
+                                >
+                                  <RecipeImage
+                                    imageUrl={img}
+                                    title={name}
+                                    height={120}
+                                  />
+                                </Box>
+                              </Box>
+
+                              {/* 下部：タイトル＋ボタン */}
+                              <Box
                                 sx={{
-                                  mt: "auto",
-                                  borderRadius: 999,
-                                  textTransform: "none",
+                                  px: 1.25,
+                                  pt: 1,
+                                  pb: 1.25,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  flexGrow: 1,
+                                  minHeight: 0,
                                 }}
-                                onClick={() => openPicker(meal.key, slot.key)}
-                                disabled={saving || recipeList.length === 0}
                               >
-                                このレシピを変更
-                              </Button>
-                            </Box>
-                          </Card>
-                        );
-                      })}
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontWeight: 900,
+                                    lineHeight: 1.3,
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical",
+                                    overflow: "hidden",
+                                    minHeight: 36,
+                                  }}
+                                  title={name}
+                                >
+                                  {name}
+                                </Typography>
+
+                                <Button
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  sx={{
+                                    mt: "auto",
+                                    borderRadius: 999,
+                                    textTransform: "none",
+                                  }}
+                                  onClick={() => openPicker(meal.key, slot.key)}
+                                  disabled={saving || recipeList.length === 0}
+                                >
+                                  このレシピを変更
+                                </Button>
+                              </Box>
+                            </Card>
+                          );
+                        })}
+                      </Box>
                     </Box>
-                  </Box>
-                ))}
+                  );
+                })}
               </Stack>
 
               <Divider sx={{ my: 3 }} />
@@ -841,6 +998,54 @@ export default function WeeklyPage() {
           )}
         </Box>
       </Drawer>
+
+      {/* ✅ 新テンプレ作成Dialog */}
+      <Dialog
+        open={createTplOpen}
+        onClose={closeCreateTemplateDialog}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 900 }}>
+          新しい献立テンプレを登録
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            いま編集している内容（主食/主菜/副菜/汁物）で dailySets
+            に新規保存します。
+          </Typography>
+
+          {createTplError && (
+            <Alert severity="error" sx={{ mb: 1.5 }}>
+              {createTplError}
+            </Alert>
+          )}
+
+          <TextField
+            label="テンプレ名"
+            fullWidth
+            value={createTplName}
+            onChange={(e) => setCreateTplName(e.target.value)}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={closeCreateTemplateDialog}
+            sx={{ textTransform: "none" }}
+          >
+            キャンセル
+          </Button>
+          <Button
+            onClick={handleCreateTemplate}
+            variant="contained"
+            sx={{ borderRadius: 999, textTransform: "none" }}
+            disabled={saving}
+          >
+            登録する
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

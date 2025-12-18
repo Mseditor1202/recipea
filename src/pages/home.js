@@ -1,5 +1,3 @@
-// pages/index.jsx
-
 import React, { useEffect, useMemo, useState } from "react";
 import NextLink from "next/link";
 import {
@@ -147,11 +145,11 @@ export default function HomeTodayMenu() {
           mb: 1,
         }}
       >
-        今日の献立レシピセット
+        今日の献立
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         {todayKey
-          ? `日付：${todayKey} の 朝・昼・夜（主食 / 主菜 / 副菜 / 汁物）のレシピセットです。`
+          ? `日付：${todayKey} の 朝・昼・夜（主食 / 主菜 / 副菜 / 汁物）の献立`
           : "日付情報を読み込み中です…"}
       </Typography>
 
@@ -194,7 +192,7 @@ export default function HomeTodayMenu() {
                     variant="h6"
                     sx={{ fontWeight: 700, mb: 1.5, letterSpacing: "0.05em" }}
                   >
-                    {MEAL_LABEL[mealKey]} の献立セット
+                    {MEAL_LABEL[mealKey]} の献立
                   </Typography>
 
                   <Grid container spacing={1.5}>
@@ -271,7 +269,7 @@ export default function HomeTodayMenu() {
                               {recipe ? (
                                 <Button
                                   component={NextLink}
-                                  href={`/recipes/${recipeId}`}
+                                  href={`/recipes/${recipeId}?from=home`}
                                   variant="outlined"
                                   size="small"
                                   sx={{
