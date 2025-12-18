@@ -23,7 +23,12 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    "src/pages/auth/login.js",
+    "src/pages/recipes/createpost.jsx",
+    "src/pages/recipes/weekly/day/[daykey].jsx",
+    "src/pages/index.jsx",
+    "src/pages/recipes/index.jsx"
   ],
   "exclude": ["node_modules"]
 }
