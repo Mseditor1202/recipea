@@ -1,5 +1,5 @@
 // pages/recipes/weekly/index.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/router";
 import {
   Box,
@@ -44,7 +44,6 @@ import RecipeImage from "@/components/recipes/RecipeImage";
 function getTodayDayKey() {
   const today = new Date();
   const day = today.getDay(); // 0(日)〜6(土)
-
   const map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
   return map[day];
 }
@@ -165,8 +164,30 @@ function readDailySetSlot(ds, slotKey) {
   return null;
 }
 
+/** ✅ 追加：YYYY-MM-DD の月曜を返す（JST） */
+function getMondayKeyFromDateKey(dateKey) {
+  const d = new Date(`${dateKey}T00:00:00+09:00`);
+  const day = d.getDay(); // 0(日)〜6(土)
+  const diff = (day + 6) % 7; // 月曜:0
+  d.setDate(d.getDate() - diff);
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+/** ✅ 追加：YYYY-MM-DD から mon..sun を返す */
+function getDayKeyLabelFromDateKey(dateKey) {
+  const d = new Date(`${dateKey}T00:00:00+09:00`);
+  const day = d.getDay(); // 0..6
+  const map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return map[day];
+}
+
 export default function WeeklyPage() {
   const router = useRouter();
+  const { dayKey: queryDayKey } = router.query;
 
   // ✅ hydration対策：mounted後に baseMonday を確定
   const [mounted, setMounted] = useState(false);
@@ -198,6 +219,31 @@ export default function WeeklyPage() {
     if (!weekKey) return null;
     return getDayKeyFromWeekAndDay(weekKey, selectedDayKey);
   }, [weekKey, selectedDayKey]);
+
+  /** ✅ クエリ dayKey に連動して週・曜日を合わせる（1回だけ） */
+  const appliedQueryRef = useRef(false);
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (!baseMonday) return;
+    if (appliedQueryRef.current) return;
+
+    if (!queryDayKey || typeof queryDayKey !== "string") return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(queryDayKey)) return;
+
+    const mondayKey = getMondayKeyFromDateKey(queryDayKey);
+
+    const base = new Date(baseMonday);
+    const target = new Date(`${mondayKey}T00:00:00+09:00`);
+    const diffMs = target.getTime() - base.getTime();
+    const diffWeeks = Math.round(diffMs / (1000 * 60 * 60 * 24 * 7));
+
+    const nextOffset = Math.min(MAX_WEEKS - 1, Math.max(0, diffWeeks));
+
+    setWeekOffset(nextOffset);
+    setSelectedDayKey(getDayKeyLabelFromDateKey(queryDayKey));
+
+    appliedQueryRef.current = true;
+  }, [router.isReady, baseMonday, queryDayKey]);
 
   // 状態
   const [loading, setLoading] = useState(true);
@@ -379,7 +425,7 @@ export default function WeeklyPage() {
     setErrorMsg("");
     setSaveMsg("");
 
-    // 解除
+    // 解除（templateIdsだけ解除）
     if (!dailySetId) {
       setDayDoc((prev) => ({
         ...prev,
@@ -446,10 +492,49 @@ export default function WeeklyPage() {
     }
   };
 
+  // ✅ 追加：朝/昼/夜 を個別に削除（4枠null + templateIds解除）
+  const handleClearMeal = async (mealKey) => {
+    if (!dateKey) return;
+
+    setErrorMsg("");
+    setSaveMsg("");
+
+    const cleared = emptyMeal();
+
+    // 即反映（mealを空にして、templateIdsも解除）
+    setDayDoc((prev) => ({
+      ...prev,
+      [mealKey]: cleared,
+      templateIds: { ...prev.templateIds, [mealKey]: "" },
+    }));
+
+    try {
+      setSaving(true);
+
+      await setDoc(
+        doc(db, "weeklyDaySets", String(dateKey)),
+        {
+          [mealKey]: cleared,
+          templateIds: { [mealKey]: "" },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      const label = MEALS.find((m) => m.key === mealKey)?.label || mealKey;
+      setSaveMsg(`${label} の献立を削除しました。`);
+    } catch (e) {
+      console.error(e);
+      setErrorMsg("削除に失敗しました。");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ✅ 「テンプレから一部変更されたか？」を meal単位で判定
   const isMealDirtyFromTemplate = (mealKey) => {
     const tplId = dayDoc?.templateIds?.[mealKey];
-    if (!tplId) return false; // テンプレ未使用なら出さない（仕様）
+    if (!tplId) return false; // テンプレ未使用なら出さない
     const ds = dailySets.find((x) => x.id === tplId);
     if (!ds) return false;
 
@@ -492,7 +577,7 @@ export default function WeeklyPage() {
 
     const meal = dayDoc?.[createTplMealKey] || emptyMeal();
 
-    // dailySets は staple/mainDish/sideDish/soup で保存する（今までの運用に寄せる）
+    // dailySets は staple/mainDish/sideDish/soup で保存する
     const payload = {
       name,
       memo: "",
@@ -514,10 +599,10 @@ export default function WeeklyPage() {
       const ref = await addDoc(collection(db, "dailySets"), payload);
       const newId = ref.id;
 
-      // 2) ローカルの dailySets も更新（即反映）
+      // 2) ローカル反映
       setDailySets((prev) => [{ id: newId, ...payload }, ...prev]);
 
-      // 3) weeklyDaySets の templateIds を新テンプレに差し替え
+      // 3) weeklyDaySets の templateIds を差し替え
       setDayDoc((prev) => ({
         ...prev,
         templateIds: { ...prev.templateIds, [createTplMealKey]: newId },
@@ -648,6 +733,13 @@ export default function WeeklyPage() {
                 <Chip size="small" label={`表示中: ${dateKey}`} />
                 <Chip size="small" label={`recipes: ${recipeList.length}件`} />
                 <Chip size="small" label={`dailySets: ${dailySets.length}件`} />
+                {queryDayKey && (
+                  <Chip
+                    size="small"
+                    color="primary"
+                    label={`fromHome: ${queryDayKey}`}
+                  />
+                )}
               </Stack>
             </CardContent>
           </Card>
@@ -677,7 +769,7 @@ export default function WeeklyPage() {
 
                   return (
                     <Box key={meal.key}>
-                      {/* 朝昼夜：テンプレDropdown + dirty時ボタン */}
+                      {/* 朝昼夜：テンプレDropdown + 削除 + dirty時ボタン */}
                       <Stack
                         direction={{ xs: "column", sm: "row" }}
                         justifyContent="space-between"
@@ -695,6 +787,21 @@ export default function WeeklyPage() {
                           alignItems={{ xs: "stretch", sm: "center" }}
                           sx={{ width: { xs: "100%", sm: "auto" } }}
                         >
+                          {/* ✅ 追加：mealを削除（templateIdsも解除） */}
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            sx={{
+                              borderRadius: 999,
+                              textTransform: "none",
+                              whiteSpace: "nowrap",
+                            }}
+                            onClick={() => handleClearMeal(meal.key)}
+                            disabled={saving}
+                          >
+                            {meal.label}を削除
+                          </Button>
+
                           <TextField
                             select
                             size="small"
@@ -737,7 +844,7 @@ export default function WeeklyPage() {
                         </Stack>
                       </Stack>
 
-                      {/* ✅ ここが「横幅を揃える」本体：GridじゃなくCSS gridで均等割り */}
+                      {/* カード4枠 */}
                       <Box
                         sx={{
                           display: "grid",
@@ -763,7 +870,7 @@ export default function WeeklyPage() {
                               variant="outlined"
                               sx={{
                                 width: "100%",
-                                height: 260, // ✅ “全カード同じ大きさ”はこれが最強
+                                height: 260,
                                 minWidth: 0,
                                 display: "flex",
                                 flexDirection: "column",
@@ -773,7 +880,6 @@ export default function WeeklyPage() {
                                 backgroundColor: "#fff",
                               }}
                             >
-                              {/* ラベル */}
                               <Box sx={{ px: 1.25, pt: 1.25, pb: 0.75 }}>
                                 <Typography
                                   variant="caption"
@@ -784,7 +890,6 @@ export default function WeeklyPage() {
                                 </Typography>
                               </Box>
 
-                              {/* 画像（固定高） */}
                               <Box sx={{ px: 1.25 }}>
                                 <Box
                                   sx={{
@@ -803,7 +908,6 @@ export default function WeeklyPage() {
                                 </Box>
                               </Box>
 
-                              {/* 下部：タイトル＋ボタン */}
                               <Box
                                 sx={{
                                   px: 1.25,

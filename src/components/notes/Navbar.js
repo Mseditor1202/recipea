@@ -7,11 +7,9 @@ export default function Navbar() {
     <nav>
       <Link href="/home">ホーム</Link>
       {" | "}
-      <Link href="/recipes/weekly">週間レシピ登録</Link>
+      <Link href="/recipes/weekly">献立をつくる</Link>
       {" | "}
-      <Link href="/recipes/dailyset">献立レシピ一覧</Link>
-      {" | "}
-      <Link href="/recipes/dailyset/create">献立レシピ登録</Link>
+      <Link href="/recipes/dailyset">献立テンプレ</Link>
       {" | "}
       <Link href="/recipes">レシピ一覧</Link>
       {" | "}

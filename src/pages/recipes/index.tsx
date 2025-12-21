@@ -1,10 +1,10 @@
 // pages/recipes/index.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   collection,
   getDocs,
   doc,
-  setDoc,
+  updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -22,128 +22,67 @@ import {
   Chip,
   TextField,
   Stack,
+  Divider,
+  Snackbar,
   Alert,
 } from "@mui/material";
+import { Save as SaveIcon } from "@mui/icons-material";
 
-/**
- * URLクエリでの利用モード
- * 1) 通常: /recipes
- * 2) weeklyDayセット用:
- *    /recipes?mode=weeklyDay&dayKey=YYYY-MM-DD&meal=breakfast&slot=main
- * 3) dailySet編集用（新）:
- *    /recipes?mode=dailySet&slot=mainDish&dailySetId=xxx
- * 4) dailyMeal編集用（旧・互換）:
- *    /recipes?mode=dailyMeal&meal=breakfast&slot=mainDish&dailySetId=xxx
- */
+/* ===============================
+   正規化
+================================ */
+const normalize = (v) => (v || "").toLowerCase();
 
-// slot param の揺れ（mainDish/sideDish etc）を weeklyDaySets のキーへ正規化
-function normalizeWeeklySlot(slot) {
-  if (!slot) return "";
-  const s = String(slot);
-
-  // weeklyDaySets は staple/main/side/soup
-  if (s === "staple" || s === "main" || s === "side" || s === "soup") return s;
-
-  // 旧表現
-  if (s === "mainDish") return "main";
-  if (s === "sideDish") return "side";
-
-  // それっぽい文字列も救う
-  const lower = s.toLowerCase();
-  if (lower.includes("staple")) return "staple";
-  if (lower.includes("main")) return "main";
-  if (lower.includes("side")) return "side";
-  if (lower.includes("soup")) return "soup";
-
-  return s;
-}
-
-// recipes.category の揺れ（mainDish など）を正規化
-function normalizeRecipeCategory(cat) {
-  if (!cat) return "";
-  const c = String(cat).toLowerCase();
-
-  if (c === "staple") return "staple";
-  if (c === "main" || c === "maindish" || c === "main_dish") return "main";
-  if (c === "side" || c === "sidedish" || c === "side_dish") return "side";
-  if (c === "soup") return "soup";
-
-  if (c.includes("staple")) return "staple";
-  if (c.includes("main")) return "main";
-  if (c.includes("side")) return "side";
-  if (c.includes("soup")) return "soup";
-
-  return c;
-}
-
-const categoryLabels = {
-  staple: "主食",
-  main: "主菜",
-  side: "副菜",
-  soup: "汁物",
-};
-
-const mealLabels = {
-  breakfast: "朝",
-  lunch: "昼",
-  dinner: "夜",
-};
-
+/* ===============================
+   ページ本体
+================================ */
 export default function RecipesPage() {
   const router = useRouter();
+  const currentUserId = auth.currentUser?.uid;
 
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [searchText, setSearchText] = useState("");
+  const [activeTags, setActiveTags] = useState([]);
 
-  // クエリ（router.isReady を前提に扱う）
-  const query = router.query;
-  const mode = query.mode;
+  // ✅ memo編集用（dailysetと同じ思想）
+  const [memoDrafts, setMemoDrafts] = useState({}); // { [recipeId]: string }
+  const [savingById, setSavingById] = useState({}); // { [recipeId]: boolean }
 
-  // ✅ weeklyDay モード
-  const isWeeklyDayMode =
-    router.isReady &&
-    mode === "weeklyDay" &&
-    query.dayKey &&
-    query.meal &&
-    query.slot;
+  // ✅ Snackbar（Toast）
+  const [toast, setToast] = useState({
+    open: false,
+    severity: "success", // "success" | "error" | "info" | "warning"
+    message: "",
+  });
 
-  const weeklyDayKey = isWeeklyDayMode ? String(query.dayKey) : null; // YYYY-MM-DD
-  const weeklyMealKey = isWeeklyDayMode ? String(query.meal) : null; // breakfast/lunch/dinner
-  const weeklySlotKey = isWeeklyDayMode
-    ? normalizeWeeklySlot(query.slot)
-    : null; // staple/main/side/soup
+  const openToast = useCallback((severity, message) => {
+    setToast({ open: true, severity, message });
+  }, []);
 
-  // ✅ dailySet（新）モード：dailySets を直接更新する
-  const isDailySetMode =
-    router.isReady && mode === "dailySet" && query.slot && query.dailySetId;
+  const closeToast = useCallback((_, reason) => {
+    if (reason === "clickaway") return;
+    setToast((prev) => ({ ...prev, open: false }));
+  }, []);
 
-  const dailySetIdNew = isDailySetMode ? String(query.dailySetId) : null;
-  const dailySetSlotKey = isDailySetMode ? String(query.slot) : null; // staple/mainDish/sideDish/soup
-
-  // ✅ dailyMeal（旧互換）モード：残すなら残す
-  const isDailyMealMode =
-    router.isReady &&
-    mode === "dailyMeal" &&
-    query.meal &&
-    query.slot &&
-    query.dailySetId;
-
-  const dailySetIdOld = isDailyMealMode ? String(query.dailySetId) : null;
-  const dailyMeal = isDailyMealMode ? String(query.meal) : null;
-  const dailySlot = isDailyMealMode ? String(query.slot) : null;
-
-  const currentUserId = auth.currentUser?.uid || null;
-
-  // 初回ロード：recipes 全取得
+  /* ---------- 取得 ---------- */
   useEffect(() => {
     const run = async () => {
-      setLoading(true);
       try {
         const snap = await getDocs(collection(db, "recipes"));
-        setRecipes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      } catch (e) {
-        console.error(e);
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        setRecipes(list);
+
+        // ✅ 初回：memoDraftを同期（既に編集してたら上書きしない）
+        setMemoDrafts((prev) => {
+          const next = { ...prev };
+          list.forEach((r) => {
+            if (next[r.id] === undefined) next[r.id] = r.memo || "";
+          });
+          return next;
+        });
       } finally {
         setLoading(false);
       }
@@ -151,224 +90,170 @@ export default function RecipesPage() {
     run();
   }, []);
 
-  // フィルタ（検索 + 選択モード時のカテゴリ絞り）
+  /* ---------- 全タグ一覧 ---------- */
+  const allTags = useMemo(() => {
+    const set = new Set();
+    recipes.forEach(
+      (r) =>
+        Array.isArray(r.searchTags) && r.searchTags.forEach((t) => set.add(t))
+    );
+    return [...set];
+  }, [recipes]);
+
+  /* ---------- フィルタ ---------- */
   const filtered = useMemo(() => {
     let list = recipes;
 
-    // weeklyDay は slot に応じてカテゴリ絞り（あれば）
-    if (isWeeklyDayMode && weeklySlotKey) {
+    const q = normalize(searchText);
+
+    if (q) {
       list = list.filter((r) => {
-        const c = normalizeRecipeCategory(r.category);
-        return !r.category || c === weeklySlotKey;
+        const nameHit = normalize(r.recipeName).includes(q);
+        const tagHit =
+          Array.isArray(r.searchTags) &&
+          r.searchTags.some((t) => normalize(t).includes(q));
+        return nameHit || tagHit;
       });
     }
 
-    // dailySet（新）も slot に応じてカテゴリ絞り（mainDish/sideDish → main/side）
-    if (isDailySetMode && dailySetSlotKey) {
-      const slotToCat = {
-        staple: "staple",
-        mainDish: "main",
-        sideDish: "side",
-        soup: "soup",
-      };
-      const target =
-        slotToCat[dailySetSlotKey] || normalizeWeeklySlot(dailySetSlotKey);
-      list = list.filter((r) => {
-        const c = normalizeRecipeCategory(r.category);
-        return !r.category || c === target;
-      });
-    }
-
-    // dailyMeal（旧互換）
-    if (isDailyMealMode && dailySlot) {
-      const slotToCat = {
-        staple: "staple",
-        mainDish: "main",
-        sideDish: "side",
-        soup: "soup",
-      };
-      const target = slotToCat[dailySlot] || normalizeWeeklySlot(dailySlot);
-      list = list.filter((r) => {
-        const c = normalizeRecipeCategory(r.category);
-        return !r.category || c === target;
-      });
-    }
-
-    const q = searchText.trim().toLowerCase();
-    if (!q) return list;
-
-    return list.filter((r) => (r.recipeName || "").toLowerCase().includes(q));
-  }, [
-    recipes,
-    searchText,
-    isWeeklyDayMode,
-    weeklySlotKey,
-    isDailySetMode,
-    dailySetSlotKey,
-    isDailyMealMode,
-    dailySlot,
-  ]);
-
-  // ✅ weeklyDay: 選択 → weeklyDaySets に保存して戻る
-  const handleSelectForWeeklyDay = async (recipeId) => {
-    if (!weeklyDayKey || !weeklyMealKey || !weeklySlotKey) return;
-
-    try {
-      await setDoc(
-        doc(db, "weeklyDaySets", weeklyDayKey),
-        {
-          [weeklyMealKey]: {
-            [weeklySlotKey]: recipeId,
-          },
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
+    if (activeTags.length > 0) {
+      list = list.filter(
+        (r) =>
+          Array.isArray(r.searchTags) &&
+          activeTags.every((t) => r.searchTags.includes(t))
       );
-
-      router.push(`/recipes/weekly/day/${weeklyDayKey}`);
-    } catch (e) {
-      console.error(e);
-      alert("レシピのセットに失敗しました。");
     }
-  };
 
-  // ✅ dailySet（新）: 選択 → dailySets に保存して一覧へ戻る
-  const handleSelectForDailySetNew = async (recipeId) => {
-    if (!dailySetIdNew || !dailySetSlotKey) return;
+    return list;
+  }, [recipes, searchText, activeTags]);
 
-    try {
-      await setDoc(
-        doc(db, "dailySets", dailySetIdNew),
-        {
-          [dailySetSlotKey]: recipeId,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      router.push("/recipes/dailyset");
-    } catch (e) {
-      console.error(e);
-      alert("レシピのセットに失敗しました。");
-    }
-  };
-
-  // ✅ dailyMeal（旧互換）: 既存仕様どおり
-  const handleSelectForDailySetOld = (recipeId) => {
-    router.push(
-      `/recipes/dailyset/${dailySetIdOld}?meal=${dailyMeal}&slot=${dailySlot}&recipeId=${recipeId}`
+  /* ---------- タグ操作 ---------- */
+  const toggleTag = (tag) => {
+    setActiveTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
   };
 
-  // 通常の詳細・編集
-  const handleDetail = (id) => router.push(`/recipes/${id}`);
-  const handleEdit = (id) => router.push(`/recipes/edit/${id}`);
+  // ✅ memoの下書き更新
+  const handleMemoChange = useCallback((recipeId, value) => {
+    setMemoDrafts((prev) => ({ ...prev, [recipeId]: value }));
+  }, []);
 
-  const titleText = useMemo(() => {
-    if (isWeeklyDayMode) {
-      return `「${mealLabels[weeklyMealKey] || ""}」の ${
-        categoryLabels[weeklySlotKey] || weeklySlotKey
-      } を選択`;
-    }
-    if (isDailySetMode) {
-      const label =
-        { staple: "主食", mainDish: "主菜", sideDish: "副菜", soup: "汁物" }[
-          dailySetSlotKey
-        ] || dailySetSlotKey;
-      return `献立レシピセット：${label} を選択`;
-    }
-    if (isDailyMealMode) {
-      return `「${mealLabels[dailyMeal] || ""}」の ${dailySlot} を選択`;
-    }
-    return "レシピ一覧";
-  }, [
-    isWeeklyDayMode,
-    weeklyMealKey,
-    weeklySlotKey,
-    isDailySetMode,
-    dailySetSlotKey,
-    isDailyMealMode,
-    dailyMeal,
-    dailySlot,
-  ]);
+  // ✅ isDirty判定（元memoと比較）
+  const isDirty = useCallback(
+    (recipeDoc) => {
+      const original = recipeDoc.memo || "";
+      const draft = memoDrafts[recipeDoc.id] ?? original;
+      return draft !== original;
+    },
+    [memoDrafts]
+  );
 
-  const showSelectInfo = isWeeklyDayMode || isDailySetMode || isDailyMealMode;
+  // ✅ 保存処理（recipes）
+  const handleSaveMemo = useCallback(
+    async (recipeDoc) => {
+      const recipeId = recipeDoc.id;
+      const original = recipeDoc.memo || "";
+      const draft = memoDrafts[recipeId] ?? original;
 
-  const handleBack = () => {
-    if (isWeeklyDayMode)
-      return router.push(`/recipes/weekly/day/${weeklyDayKey}`);
-    if (isDailySetMode) return router.push("/recipes/dailyset");
-    if (isDailyMealMode)
-      return router.push(`/recipes/dailyset/${dailySetIdOld}`);
-    return router.back();
-  };
+      if (draft === original) return;
 
+      setSavingById((prev) => ({ ...prev, [recipeId]: true }));
+
+      try {
+        const ref = doc(db, "recipes", recipeId);
+        await updateDoc(ref, {
+          memo: draft,
+          updatedAt: serverTimestamp(),
+        });
+
+        // ✅ 画面上の recipes も更新（即反映）
+        setRecipes((prev) =>
+          prev.map((r) => (r.id === recipeId ? { ...r, memo: draft } : r))
+        );
+
+        openToast("success", "保存しました");
+      } catch (e) {
+        console.error(e);
+        openToast(
+          "error",
+          "保存に失敗しました。通信状況を確認して再度お試しください。"
+        );
+      } finally {
+        setSavingById((prev) => ({ ...prev, [recipeId]: false }));
+      }
+    },
+    [memoDrafts, openToast]
+  );
+
+  /* ---------- 画面 ---------- */
   return (
-    <Box
-      sx={{ maxWidth: 1100, mx: "auto", mt: 4, px: { xs: 1.5, sm: 2, md: 3 } }}
-    >
-      <Stack
-        direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{ mb: 2 }}
-      >
-        <Typography variant="h5" sx={{ fontWeight: 800 }}>
-          {titleText}
-        </Typography>
+    <Box sx={{ maxWidth: 1200, mx: "auto", mt: 4, px: 2 }}>
+      <Typography variant="h5" fontWeight={800} mb={2}>
+        レシピ一覧
+      </Typography>
 
-        {showSelectInfo && (
-          <Button
-            variant="outlined"
-            sx={{ borderRadius: 999, textTransform: "none" }}
-            onClick={handleBack}
-          >
-            戻る
-          </Button>
-        )}
-      </Stack>
-
-      {showSelectInfo && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          セットするレシピを選んでください。（カテゴリで自動絞り込み中：合わない場合は
-          recipes の category を確認してね）
-        </Alert>
-      )}
-
+      {/* 🔍 検索 */}
       <TextField
         fullWidth
-        sx={{ mb: 3 }}
+        label="レシピ名 or タグで検索"
         value={searchText}
         onChange={(e) => setSearchText(e.target.value)}
-        label="レシピ名で検索"
+        sx={{ mb: 2 }}
       />
 
-      {loading && (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          読み込み中...
-        </Typography>
+      {/* 🏷 タグ一覧 */}
+      <Stack direction="row" spacing={1} flexWrap="wrap" mb={2}>
+        {allTags.map((tag) => {
+          const active = activeTags.includes(tag);
+          return (
+            <Chip
+              key={tag}
+              label={`#${tag}`}
+              clickable
+              onClick={() => toggleTag(tag)}
+              color={active ? "primary" : "default"}
+              variant={active ? "filled" : "outlined"}
+              sx={{
+                fontWeight: active ? 700 : 400,
+                cursor: "pointer",
+              }}
+            />
+          );
+        })}
+      </Stack>
+
+      {activeTags.length > 0 && (
+        <Stack direction="row" spacing={1} mb={2}>
+          <Typography variant="body2">選択中：</Typography>
+          {activeTags.map((t) => (
+            <Chip
+              key={t}
+              label={`#${t}`}
+              color="primary"
+              onDelete={() => toggleTag(t)}
+            />
+          ))}
+        </Stack>
       )}
 
-      <Grid container spacing={3} columns={12}>
+      <Divider sx={{ mb: 3 }} />
+
+      {/* 🧱 一覧 */}
+      <Grid container spacing={3}>
         {filtered.map((recipe) => {
-          const normalizedCat = normalizeRecipeCategory(recipe.category);
-          const canEdit = currentUserId && currentUserId === recipe.authorId;
+          const canEdit = recipe.authorId === currentUserId;
+
+          // ✅ ここがdirty未定義エラーの解決ポイント
+          const dirty = isDirty(recipe);
+          const saving = !!savingById[recipe.id];
+          const draft = memoDrafts[recipe.id] ?? (recipe.memo || "");
 
           return (
-            <Grid
-              item
-              xs={12}
-              sm={6}
-              md={4}
-              key={recipe.id}
-              sx={{ display: "flex" }}
-            >
+            <Grid item xs={12} sm={6} md={4} key={recipe.id}>
               <Card
                 sx={{
-                  width: "100%",
-                  borderRadius: 2.5,
-                  overflow: "hidden",
-                  boxSizing: "border-box",
+                  height: "100%",
                   display: "flex",
                   flexDirection: "column",
                 }}
@@ -380,86 +265,107 @@ export default function RecipesPage() {
                 />
 
                 <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                    {recipe.recipeName}
-                  </Typography>
+                  <Typography fontWeight={800}>{recipe.recipeName}</Typography>
 
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                    mt={1}
-                    flexWrap="wrap"
-                  >
-                    {normalizedCat && (
-                      <Chip
-                        size="small"
-                        label={categoryLabels[normalizedCat] || normalizedCat}
-                      />
-                    )}
-
-                    {typeof recipe.cookingTime === "number" && (
-                      <Typography variant="body2" color="text.secondary">
-                        調理時間: {recipe.cookingTime}分
-                      </Typography>
-                    )}
+                  <Stack direction="row" spacing={0.5} mt={1} flexWrap="wrap">
+                    {recipe.searchTags?.map((t) => (
+                      <Chip key={t} size="small" label={`#${t}`} />
+                    ))}
                   </Stack>
                 </CardContent>
 
                 <CardActions sx={{ px: 2, pb: 2 }}>
-                  {isWeeklyDayMode ? (
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      sx={{ borderRadius: 999, textTransform: "none" }}
-                      onClick={() => handleSelectForWeeklyDay(recipe.id)}
-                    >
-                      このレシピをセット
-                    </Button>
-                  ) : isDailySetMode ? (
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      sx={{ borderRadius: 999, textTransform: "none" }}
-                      onClick={() => handleSelectForDailySetNew(recipe.id)}
-                    >
-                      このレシピをセット
-                    </Button>
-                  ) : isDailyMealMode ? (
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      sx={{ borderRadius: 999, textTransform: "none" }}
-                      onClick={() => handleSelectForDailySetOld(recipe.id)}
-                    >
-                      このレシピをセット
-                    </Button>
-                  ) : (
-                    <Stack direction="row" spacing={1} sx={{ width: "100%" }}>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        size="small"
-                        sx={{ borderRadius: 999, textTransform: "none" }}
-                        onClick={() => handleDetail(recipe.id)}
-                      >
-                        詳細
-                      </Button>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    sx={{ borderRadius: 999 }}
+                    onClick={() => router.push(`/recipes/${recipe.id}`)}
+                  >
+                    詳細
+                  </Button>
 
-                      {canEdit && (
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          size="small"
-                          sx={{ borderRadius: 999, textTransform: "none" }}
-                          onClick={() => handleEdit(recipe.id)}
-                        >
-                          編集
-                        </Button>
-                      )}
-                    </Stack>
+                  {canEdit && (
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      sx={{ borderRadius: 999 }}
+                      onClick={() => router.push(`/recipes/edit/${recipe.id}`)}
+                    >
+                      編集
+                    </Button>
                   )}
                 </CardActions>
+
+                {/* ✅ Memoを「詳細/編集ボタンより下」に配置 */}
+                <Box
+                  sx={{
+                    px: 2,
+                    pb: 2,
+                    pt: 1.25,
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ mb: 0.5 }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      メモ
+                    </Typography>
+
+                    <Button
+                      size="small"
+                      variant={dirty ? "contained" : "outlined"}
+                      startIcon={<SaveIcon />}
+                      disabled={!canEdit || !dirty || saving}
+                      onClick={() => handleSaveMemo(recipe)}
+                      sx={{
+                        textTransform: "none",
+                        borderRadius: 999,
+                        minWidth: 110,
+                      }}
+                    >
+                      {saving ? "保存中…" : "保存"}
+                    </Button>
+                  </Stack>
+
+                  <TextField
+                    value={draft}
+                    onChange={(e) =>
+                      handleMemoChange(recipe.id, e.target.value)
+                    }
+                    placeholder={
+                      canEdit
+                        ? "例）辛めが好き / 次は倍量で作る"
+                        : "（編集は作成者のみ）"
+                    }
+                    size="small"
+                    fullWidth
+                    multiline
+                    minRows={2}
+                    maxRows={6}
+                    disabled={!canEdit}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        bgcolor: "background.paper",
+                      },
+                    }}
+                  />
+
+                  {canEdit && dirty && (
+                    <Typography
+                      variant="caption"
+                      color="warning.main"
+                      sx={{ display: "block", mt: 0.75 }}
+                    >
+                      未保存の変更があります
+                    </Typography>
+                  )}
+                </Box>
               </Card>
             </Grid>
           );
@@ -467,10 +373,27 @@ export default function RecipesPage() {
       </Grid>
 
       {!loading && filtered.length === 0 && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
-          該当するレシピがありません。
+        <Typography color="text.secondary" mt={3}>
+          該当するレシピがありません
         </Typography>
       )}
+
+      {/* ✅ Snackbar Toast（画面右下） */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={2500}
+        onClose={closeToast}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={closeToast}
+          severity={toast.severity}
+          variant="filled"
+          sx={{ borderRadius: 2 }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
