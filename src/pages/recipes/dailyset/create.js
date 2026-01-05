@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, addDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import MealTypeDescription from "@/components/recipes/MealTypeDescription";
 import {
@@ -17,7 +22,7 @@ export default function CreateDailySet() {
   const [recipes, setRecipes] = useState([]);
   const [setName, setSetName] = useState("");
 
-  // 「主食・主菜・副菜・汁物」に変更
+  // 「主食・主菜・副菜・汁物」
   const [staple, setStaple] = useState(""); // 主食
   const [mainDish, setMainDish] = useState(""); // 主菜
   const [sideDish, setSideDish] = useState(""); // 副菜
@@ -26,7 +31,7 @@ export default function CreateDailySet() {
   // メモ
   const [memo, setMemo] = useState("");
 
-  //  全レシピを取得
+  // 全レシピ取得
   useEffect(() => {
     const fetchRecipes = async () => {
       const snap = await getDocs(collection(db, "recipes"));
@@ -42,20 +47,16 @@ export default function CreateDailySet() {
       return;
     }
 
-    // 4つすべて必須
-    if (!staple || !mainDish || !sideDish || !soup) {
-      alert("主食・主菜・副菜・汁物すべて選んでください");
-      return;
-    }
-
+    // ✅ 4つ必須チェックは削除（空欄OK思想）
     await addDoc(collection(db, "dailySets"), {
       name: setName.trim(),
-      staple, // 主食
-      mainDish, // 主菜
-      sideDish, // 副菜
-      soup, // 汁物
+      staple: staple || null,
+      mainDish: mainDish || null,
+      sideDish: sideDish || null,
+      soup: soup || null,
       memo: memo || "",
-      createdAt: new Date(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
 
     alert("レシピセットを作成しました！");
@@ -71,15 +72,13 @@ export default function CreateDailySet() {
 
   return (
     <Box sx={{ maxWidth: 550, mx: "auto", mt: 4, px: 2 }}>
-      <Typography variant="h5" mb={2}>
+      <Typography variant="h5" mb={2} sx={{ fontWeight: 900 }}>
         🍱 献立レシピを作成
       </Typography>
 
-      {/* 主食、主菜、副菜の説明 */}
       <MealTypeDescription />
 
-      <Card sx={{ p: 3 }}>
-        {/* セット名 */}
+      <Card sx={{ p: 3, borderRadius: 3 }}>
         <TextField
           label="セット名（例：和食Aセット）"
           fullWidth
@@ -88,7 +87,6 @@ export default function CreateDailySet() {
           sx={{ mb: 3 }}
         />
 
-        {/* メモ欄 */}
         <TextField
           label="メモ"
           fullWidth
@@ -97,12 +95,11 @@ export default function CreateDailySet() {
           multiline
           minRows={2}
           sx={{ mb: 3 }}
-          placeholder="作り置き用 / 高タンパク / 節約デー などメモを書いておくと便利です"
+          placeholder="作り置き用 / 高タンパク / 節約デー など"
         />
 
         <Divider sx={{ mb: 3 }} />
 
-        {/* 主食・主菜・副菜・汁物のレシピ選択 */}
         <Stack spacing={2}>
           {[
             { label: "主食", value: staple, setter: setStaple },
@@ -117,7 +114,9 @@ export default function CreateDailySet() {
               value={item.value}
               onChange={(e) => item.setter(e.target.value)}
               fullWidth
+              helperText="未設定（空欄）でもOK"
             >
+              <MenuItem value="">未設定（空欄）</MenuItem>
               {recipes.map((r) => (
                 <MenuItem key={r.id} value={r.id}>
                   {r.recipeName}
@@ -130,7 +129,7 @@ export default function CreateDailySet() {
         <Button
           variant="contained"
           fullWidth
-          sx={{ mt: 3, py: 1.2 }}
+          sx={{ mt: 3, py: 1.2, fontWeight: 900, borderRadius: 2 }}
           onClick={createSet}
         >
           保存する

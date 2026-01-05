@@ -1,3 +1,4 @@
+// pages/home/index.jsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import NextLink from "next/link";
 import {
@@ -33,10 +34,10 @@ import { db } from "@/lib/firebase";
 
 const DEFAULT_IMAGE = "/images/default-recipe.png";
 
-// ✅ dailySets の中で「ズボラ用」を探すキーワード（nameに含める）
+// dailySets の中で「ズボラ用」を探すキーワード（nameに含める）
 const ZUBORA_DAILYSET_KEYWORD = "ズボラ";
 
-// ✅ Firestore collection名
+// Firestore collection名
 const COLLECTION_WEEKLY_DAY = "weeklyDaySets";
 const COLLECTION_RECIPES = "recipes";
 const COLLECTION_DAILYSETS = "dailySets";
@@ -108,23 +109,6 @@ function isDayPlanEmpty(dayData) {
   );
 }
 
-function pickRepresentativeRecipeId(mealData) {
-  if (!mealData) return null;
-  // 代表優先順：主菜 → 主食 → 副菜 → 汁物
-  const order = ["main", "staple", "side", "soup"];
-  for (const k of order) {
-    if (mealData[k]) return mealData[k];
-  }
-  return null;
-}
-
-function getRepresentative3(dayData) {
-  const b = pickRepresentativeRecipeId(dayData?.breakfast);
-  const l = pickRepresentativeRecipeId(dayData?.lunch);
-  const d = pickRepresentativeRecipeId(dayData?.dinner);
-  return { breakfast: b, lunch: l, dinner: d };
-}
-
 function dailySetToMealSlots(dailySetData) {
   // dailySets: { staple, mainDish, sideDish, soup } 想定
   // 揺れ吸収：main / side が入ってても拾う
@@ -137,7 +121,7 @@ function dailySetToMealSlots(dailySetData) {
 }
 
 /** ===============================
- * 今日タブ（完成版：空状態救済UIつき）
+ * 今日タブ
  =============================== */
 function TodayDetail({
   todayKey,
@@ -146,27 +130,21 @@ function TodayDetail({
   loading,
   error,
   onApplyZuboraDailySetToToday,
-  onLoadFatigueCandidates,
-  fatigueCandidates,
-  fatigueLoading,
-  fatigueError,
-  fatigueTargetMeal,
-  setFatigueTargetMeal,
-  onChooseFatigueRecipe,
+  onChangeSlotRecipe,
+  onDeleteSlotRecipe,
   actionBusy,
 }) {
   const empty = !loading && !error && isDayPlanEmpty(dayData);
 
   return (
     <Box sx={{ pt: 2 }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-        今日の献立
+      <Typography variant="h5" sx={{ fontWeight: 900, mb: 1 }}>
+        今日の献立{todayKey ? ` (${todayKey}) ` : "日付情報を読み込み中です…"}
       </Typography>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        {todayKey
-          ? `日付：${todayKey} の 朝・昼・夜（主食 / 主菜 / 副菜 / 汁物）の献立`
-          : "日付情報を読み込み中です…"}
+        朝・昼・夜（主食 / 主菜 / 副菜 /
+        汁物）の献立を登録・変更・削除できます。
       </Typography>
 
       {loading && (
@@ -181,7 +159,7 @@ function TodayDetail({
         </Typography>
       )}
 
-      {/* ✅ 空のときだけ：ズボラ救済UI */}
+      {/* 空のときだけ：ズボラ救済 */}
       {!loading && !error && empty && (
         <Card
           sx={{
@@ -193,10 +171,11 @@ function TodayDetail({
         >
           <CardContent>
             <Typography sx={{ fontWeight: 900, fontSize: 18, mb: 0.6 }}>
-              まだ献立が入ってないよ
+              今日の献立はまだ作ってません。ズボラ用セットで登録しませんか？
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              ズボラ用に「押すだけで決まる」導線を出してるよ。
+              「ズボラ用セット」を使えば、朝・昼・夜のベースの献立が自動で作れます。
+              作成後の部分的な変更も可能です。
             </Typography>
 
             <Stack
@@ -221,14 +200,14 @@ function TodayDetail({
                     <span>セット適用中…</span>
                   </Stack>
                 ) : (
-                  "ズボラ用セットで今日を埋める"
+                  "ズボラ用セットで今日を埋める（疲れたとき）"
                 )}
               </Button>
 
               <Button
+                component={NextLink}
+                href="/recipes/weekly"
                 variant="outlined"
-                onClick={onLoadFatigueCandidates}
-                disabled={!todayKey || fatigueLoading || actionBusy}
                 sx={{
                   borderRadius: 2,
                   textTransform: "none",
@@ -236,200 +215,16 @@ function TodayDetail({
                   py: 1.2,
                 }}
               >
-                {fatigueLoading ? (
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <CircularProgress size={18} />
-                    <span>候補を探してる…</span>
-                  </Stack>
-                ) : (
-                  "疲労モード（主菜）候補を出す"
-                )}
+                今日の献立を登録してみる（頑張れる日だけ）
               </Button>
             </Stack>
-
-            <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
-              <Button
-                component={NextLink}
-                href="/recipes/dailyset"
-                variant="text"
-                sx={{ textTransform: "none", fontWeight: 900, px: 0 }}
-              >
-                テンプレ（献立テンプレ）を編集する
-              </Button>
-              <Box sx={{ flexGrow: 1 }} />
-              <Button
-                component={NextLink}
-                href="/recipes"
-                variant="text"
-                sx={{ textTransform: "none", fontWeight: 900, px: 0 }}
-              >
-                レシピ一覧から選ぶ
-              </Button>
-            </Stack>
-
-            <Divider sx={{ my: 1.2 }} />
-
-            {/* ✅ 疲労モード候補エリア */}
-            <Box sx={{ mt: 1 }}>
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1}
-                alignItems={{ xs: "flex-start", sm: "center" }}
-                sx={{ mb: 1 }}
-              >
-                <Typography sx={{ fontWeight: 900, fontSize: 14 }}>
-                  疲労モード：どの食事にセットする？
-                </Typography>
-                <Stack direction="row" spacing={0.8}>
-                  {MEAL_ORDER.map((m) => (
-                    <Chip
-                      key={m}
-                      label={MEAL_LABEL[m]}
-                      clickable
-                      onClick={() => setFatigueTargetMeal(m)}
-                      sx={{
-                        fontWeight: 900,
-                        bgcolor:
-                          fatigueTargetMeal === m
-                            ? "rgba(25,118,210,0.10)"
-                            : "#f5f5f5",
-                      }}
-                    />
-                  ))}
-                </Stack>
-              </Stack>
-
-              {fatigueError && (
-                <Typography variant="body2" color="error" sx={{ mb: 1 }}>
-                  {fatigueError}
-                </Typography>
-              )}
-
-              {!fatigueLoading &&
-                !fatigueError &&
-                fatigueCandidates &&
-                fatigueCandidates.length > 0 && (
-                  <Grid container spacing={1.5}>
-                    {fatigueCandidates.slice(0, 6).map((r) => (
-                      <Grid item xs={12} sm={6} md={4} key={r.id}>
-                        <Box
-                          sx={{
-                            border: "1px solid #eee",
-                            borderRadius: 2,
-                            overflow: "hidden",
-                            bgcolor: "#fff",
-                            display: "flex",
-                            flexDirection: "column",
-                          }}
-                        >
-                          <Box sx={{ position: "relative", height: 120 }}>
-                            <Box
-                              component="img"
-                              src={r.imageUrl || DEFAULT_IMAGE}
-                              alt={r.recipeName || "レシピ"}
-                              sx={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                              }}
-                            />
-                            <Box
-                              sx={{
-                                position: "absolute",
-                                top: 8,
-                                left: 8,
-                                px: 1,
-                                py: 0.2,
-                                borderRadius: 999,
-                                bgcolor: "rgba(255,255,255,0.92)",
-                                border: "1px solid rgba(0,0,0,0.08)",
-                                fontSize: 11,
-                                fontWeight: 900,
-                              }}
-                            >
-                              主菜候補
-                            </Box>
-                          </Box>
-
-                          <Box sx={{ p: 1.2 }}>
-                            <Typography
-                              sx={{
-                                fontWeight: 900,
-                                fontSize: 14,
-                                lineHeight: 1.35,
-                                display: "-webkit-box",
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: "vertical",
-                                overflow: "hidden",
-                                minHeight: "2.8em",
-                              }}
-                            >
-                              {r.recipeName || "（名称未設定）"}
-                            </Typography>
-
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              sx={{ display: "block", mt: 0.2 }}
-                            >
-                              {typeof r.cookingTime === "number"
-                                ? `目安：${r.cookingTime}分`
-                                : "目安：未設定"}
-                            </Typography>
-
-                            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                              <Button
-                                variant="contained"
-                                size="small"
-                                onClick={() => onChooseFatigueRecipe(r.id)}
-                                disabled={actionBusy}
-                                sx={{
-                                  borderRadius: 999,
-                                  textTransform: "none",
-                                  fontWeight: 900,
-                                  flexGrow: 1,
-                                }}
-                              >
-                                これにする
-                              </Button>
-                              <Button
-                                component={NextLink}
-                                href={`/recipes/${r.id}?from=home`}
-                                variant="outlined"
-                                size="small"
-                                sx={{
-                                  borderRadius: 999,
-                                  textTransform: "none",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                詳細
-                              </Button>
-                            </Stack>
-                          </Box>
-                        </Box>
-                      </Grid>
-                    ))}
-                  </Grid>
-                )}
-
-              {!fatigueLoading &&
-                !fatigueError &&
-                fatigueCandidates &&
-                fatigueCandidates.length === 0 && (
-                  <Typography variant="body2" color="text.secondary">
-                    条件に合う候補が見つからなかったよ。レシピに「10分/レンチン/洗い物少」
-                    の情報を追加すると精度が上がる！
-                  </Typography>
-                )}
-            </Box>
           </CardContent>
         </Card>
       )}
 
-      {/* ✅ 空じゃないとき：従来の表示 */}
+      {/* 空じゃないとき：朝昼夜の縦積み */}
       {!loading && !error && !empty && dayData && (
-        <Stack spacing={3} sx={{ mt: 0 }}>
+        <Stack spacing={2.5} sx={{ mt: 2 }}>
           {MEAL_ORDER.map((mealKey) => {
             const mealData = dayData[mealKey] || {};
 
@@ -443,129 +238,173 @@ function TodayDetail({
                 }}
               >
                 <CardContent>
-                  <Typography
-                    variant="h6"
-                    sx={{ fontWeight: 700, mb: 1.5, letterSpacing: "0.05em" }}
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ mb: 1.5 }}
                   >
-                    {MEAL_LABEL[mealKey]} の献立
-                  </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontWeight: 900, letterSpacing: "0.05em" }}
+                    >
+                      {MEAL_LABEL[mealKey]} の献立
+                    </Typography>
+                  </Stack>
 
-                  <Grid container spacing={1.5}>
+                  {/* 4枠を「1列」で並べる（横スクロール対応） */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 12 / 8,
+                      overflowX: "auto",
+                      pb: 0.5,
+                      WebkitOverflowScrolling: "touch",
+                      scrollSnapType: "x mandatory",
+                    }}
+                  >
                     {SLOT_ORDER.map((slotKey) => {
-                      const recipeId = mealData[slotKey];
-                      const recipe = recipeId ? recipesMap[recipeId] : null;
+                      const recipeId = mealData?.[slotKey] || null;
+                      const recipe = recipeId ? recipesMap?.[recipeId] : null;
+                      const title = recipe?.recipeName || "未登録";
+                      const img = recipe?.imageUrl || DEFAULT_IMAGE;
 
                       return (
-                        <Grid item xs={6} sm={3} key={slotKey}>
-                          <Box
-                            sx={{
-                              borderRadius: 2,
-                              overflow: "hidden",
-                              bgcolor: "#fff",
-                              border: "1px solid #eee",
-                              boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-                              display: "flex",
-                              flexDirection: "column",
-                            }}
-                          >
-                            <Box sx={{ position: "relative", height: 110 }}>
-                              <Box
-                                component="img"
-                                src={recipe?.imageUrl || DEFAULT_IMAGE}
-                                alt={recipe?.recipeName || "未登録レシピ"}
-                                sx={{
-                                  width: "100%",
-                                  height: "100%",
-                                  objectFit: "cover",
-                                }}
-                              />
-
-                              <Box
-                                sx={{
-                                  position: "absolute",
-                                  top: 6,
-                                  left: 6,
-                                  px: 1,
-                                  py: 0.2,
-                                  borderRadius: "999px",
-                                  bgcolor: "rgba(255,255,255,0.95)",
-                                  border: "1px solid rgba(0,0,0,0.08)",
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {SLOT_LABEL[slotKey]}
-                              </Box>
-                            </Box>
-
-                            <Box sx={{ p: 1.2 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  minHeight: "2.6em",
-                                  lineHeight: 1.3,
-                                }}
-                                color={
-                                  recipe ? "text.primary" : "text.disabled"
-                                }
-                              >
-                                {recipe?.recipeName || "未登録"}
-                              </Typography>
-
-                              {recipe ? (
-                                <Button
-                                  component={NextLink}
-                                  href={`/recipes/${recipeId}?from=home`}
-                                  variant="outlined"
-                                  size="small"
-                                  sx={{
-                                    mt: 0.8,
-                                    textTransform: "none",
-                                    fontSize: 12,
-                                    borderRadius: 999,
-                                  }}
-                                >
-                                  このレシピの詳細を見る
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  disabled
-                                  sx={{
-                                    mt: 0.8,
-                                    textTransform: "none",
-                                    fontSize: 12,
-                                    borderRadius: 999,
-                                  }}
-                                >
-                                  レシピ未登録
-                                </Button>
-                              )}
+                        <Card
+                          key={`${mealKey}-${slotKey}`}
+                          variant="outlined"
+                          sx={{
+                            flex: "0 0 auto",
+                            width: { xs: 255, sm: 255, md: 255 },
+                            borderRadius: 2.5,
+                            overflow: "hidden",
+                            borderColor: "#eee",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                            scrollSnapAlign: "start",
+                          }}
+                        >
+                          <Box sx={{ position: "relative" }}>
+                            <Box
+                              component="img"
+                              src={img}
+                              alt={title}
+                              sx={{
+                                width: "100%",
+                                height: 120,
+                                objectFit: "cover",
+                              }}
+                            />
+                            <Box
+                              sx={{
+                                position: "absolute",
+                                top: 8,
+                                left: 8,
+                                px: 1,
+                                py: 0.25,
+                                borderRadius: 999,
+                                bgcolor: "rgba(255,255,255,0.95)",
+                                border: "1px solid rgba(0,0,0,0.08)",
+                                fontSize: 11,
+                                fontWeight: 900,
+                              }}
+                            >
+                              {SLOT_LABEL[slotKey]}
                             </Box>
                           </Box>
-                        </Grid>
+
+                          <Box sx={{ p: 1.2 }}>
+                            <Typography
+                              sx={{
+                                fontWeight: 400,
+                                fontSize: 13,
+                                lineHeight: 1.35,
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                                minHeight: "2.7em",
+                              }}
+                              title={title}
+                            >
+                              {title}
+                            </Typography>
+
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              sx={{ mt: 1.1 }}
+                              alignItems="center"
+                              flexWrap="wrap"
+                            >
+                              <Button
+                                variant="outlined"
+                                disabled={!recipeId || actionBusy}
+                                component={NextLink}
+                                href={
+                                  recipeId
+                                    ? `/recipes/${recipeId}?from=home`
+                                    : "#"
+                                }
+                                sx={{
+                                  borderRadius: 999,
+                                  textTransform: "none",
+                                  fontWeight: 900,
+                                  px: 2,
+                                }}
+                              >
+                                レシピ
+                              </Button>
+
+                              <Button
+                                variant="contained"
+                                onClick={() =>
+                                  onChangeSlotRecipe(todayKey, mealKey, slotKey)
+                                }
+                                disabled={!todayKey || actionBusy}
+                                sx={{
+                                  borderRadius: 999,
+                                  textTransform: "none",
+                                  fontWeight: 900,
+                                  px: 2,
+                                }}
+                              >
+                                変更
+                              </Button>
+
+                              <Button
+                                variant="outlined"
+                                color="error"
+                                onClick={() =>
+                                  onDeleteSlotRecipe(todayKey, mealKey, slotKey)
+                                }
+                                disabled={!todayKey || !recipeId || actionBusy}
+                                sx={{
+                                  borderRadius: 999,
+                                  textTransform: "none",
+                                  fontWeight: 900,
+                                  px: 2,
+                                }}
+                              >
+                                削除
+                              </Button>
+                            </Stack>
+                          </Box>
+                        </Card>
                       );
                     })}
-                  </Grid>
+                  </Box>
                 </CardContent>
               </Card>
             );
           })}
         </Stack>
       )}
-
-      {!loading && !error && empty && !todayKey && (
-        <Typography variant="body2" color="text.secondary">
-          日付情報を読み込み中です…
-        </Typography>
-      )}
     </Box>
   );
 }
 
 /** ===============================
- * A：月間カレンダー（7列固定・セル大）
+ * 月間カレンダー（7列固定）
  =============================== */
 function CalendarMonthGridA({
   monthDate,
@@ -583,7 +422,7 @@ function CalendarMonthGridA({
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const cells = [];
-  for (let i = 0; i < 42; i++) {
+  for (let i = 0; i < 35; i++) {
     const dayNum = i - startWeekday + 1;
     if (dayNum < 1 || dayNum > daysInMonth) cells.push(null);
     else cells.push(new Date(year, month, dayNum));
@@ -738,6 +577,367 @@ function CalendarMonthGridA({
   );
 }
 
+/** ===============================
+ * 朝/昼/夜スライド + 2x2（主食/主菜/副菜/汁物）
+ =============================== */
+function MealSlidePanelV2({
+  mealKey,
+  onChangeMeal,
+  selectedDayKey,
+  todayKey,
+  selectedDayData,
+  recipesById,
+  loadingRange,
+  selectedHasPlan,
+}) {
+  const mealIndex = MEAL_ORDER.indexOf(mealKey);
+  const dateTitle = selectedDayKey ? formatDateTitle(selectedDayKey) : "—";
+  const mmdd = selectedDayKey ? formatMMDD(selectedDayKey) : "-";
+
+  const goPrev = () => {
+    const next = (mealIndex - 1 + MEAL_ORDER.length) % MEAL_ORDER.length;
+    onChangeMeal(MEAL_ORDER[next]);
+  };
+  const goNext = () => {
+    const next = (mealIndex + 1) % MEAL_ORDER.length;
+    onChangeMeal(MEAL_ORDER[next]);
+  };
+
+  const mealData = selectedDayData?.[mealKey] || {};
+  const titleKey = selectedDayKey || todayKey;
+
+  return (
+    <Box
+      sx={{
+        maxWidth: 760,
+        mx: "auto",
+        borderRadius: 4,
+        border: "1px solid #e6e9f0",
+        bgcolor: "#fff",
+        overflow: "hidden",
+        boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
+        mb: 2.5,
+      }}
+    >
+      {/* Header */}
+      <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2.2, sm: 2.6 } }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+        >
+          <Typography
+            sx={{
+              fontSize: { xs: 28, sm: 34 },
+              fontWeight: 950,
+              letterSpacing: "0.02em",
+            }}
+          >
+            {dateTitle} の献立
+          </Typography>
+
+          <Box
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.8,
+              px: 2,
+              py: 1,
+              borderRadius: 999,
+              fontWeight: 900,
+              fontSize: 13,
+              bgcolor: selectedHasPlan ? "#ffe9ee" : "#f1f3f6",
+              color: selectedHasPlan ? "#d32f2f" : "#667085",
+            }}
+          >
+            {selectedHasPlan ? "献立あり（選択日）" : "未登録（選択日）"}
+            <span style={{ fontWeight: 900, fontSize: 16, lineHeight: 1 }}>
+              ›
+            </span>
+          </Box>
+        </Stack>
+      </Box>
+
+      {/* Nav row */}
+      <Box
+        sx={{
+          px: { xs: 2, sm: 3 },
+          py: 1.8,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+          borderTop: "1px solid #eef1f6",
+        }}
+      >
+        <Button
+          onClick={goPrev}
+          sx={{
+            width: 64,
+            height: 64,
+            borderRadius: 999,
+            bgcolor: "#eef1f6",
+            border: "1px solid #e6e9f0",
+            boxShadow: "0 10px 18px rgba(15, 23, 42, 0.06)",
+            "&:hover": { bgcolor: "#e9edf5" },
+          }}
+        >
+          <Typography sx={{ fontSize: 28, fontWeight: 900, color: "#1f2a37" }}>
+            ‹
+          </Typography>
+        </Button>
+
+        <Box
+          sx={{
+            bgcolor: "#eaf1ff",
+            border: "1px solid #d7e5ff",
+            borderRadius: 999,
+            p: 0.6,
+            display: "inline-flex",
+            gap: 0.6,
+            minWidth: 260,
+            justifyContent: "center",
+          }}
+        >
+          {MEAL_ORDER.map((k) => {
+            const active = k === mealKey;
+            return (
+              <Box
+                key={k}
+                onClick={() => onChangeMeal(k)}
+                sx={{
+                  px: 3,
+                  py: 1.1,
+                  borderRadius: 999,
+                  fontWeight: 950,
+                  fontSize: 16,
+                  letterSpacing: "0.02em",
+                  cursor: "pointer",
+                  userSelect: "none",
+                  bgcolor: active ? "#2F6BD8" : "transparent",
+                  color: active ? "#fff" : "#1f2a37",
+                  boxShadow: active
+                    ? "0 10px 18px rgba(47,107,216,0.28)"
+                    : "none",
+                  transition: "all 140ms ease",
+                }}
+              >
+                {MEAL_LABEL[k]}
+              </Box>
+            );
+          })}
+        </Box>
+
+        <Button
+          onClick={goNext}
+          sx={{
+            width: 64,
+            height: 64,
+            borderRadius: 999,
+            bgcolor: "#eef1f6",
+            border: "1px solid #e6e9f0",
+            boxShadow: "0 10px 18px rgba(15, 23, 42, 0.06)",
+            "&:hover": { bgcolor: "#e9edf5" },
+          }}
+        >
+          <Typography sx={{ fontSize: 28, fontWeight: 900, color: "#1f2a37" }}>
+            ›
+          </Typography>
+        </Button>
+      </Box>
+
+      {/* Grid */}
+      <Box
+        sx={{
+          px: { xs: 2, sm: 3 },
+          py: 2.2,
+          borderTop: "1px solid #eef1f6",
+        }}
+      >
+        {loadingRange ? (
+          <Grid container spacing={2}>
+            {SLOT_ORDER.map((s) => (
+              <Grid item xs={12} sm={6} key={s}>
+                <Box sx={{ borderRadius: 2.6, overflow: "hidden" }}>
+                  <Skeleton variant="rectangular" height={150} />
+                  <Box sx={{ p: 1.4 }}>
+                    <Skeleton width="40%" />
+                    <Skeleton width="80%" />
+                  </Box>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        ) : (
+          <Grid container spacing={2}>
+            {SLOT_ORDER.map((slotKey) => {
+              const recipeId = mealData?.[slotKey] || null;
+              const recipe = recipeId ? recipesById?.[recipeId] : null;
+
+              const img = recipe?.imageUrl || DEFAULT_IMAGE;
+              const name = recipe?.recipeName || "未登録";
+              const clickable = !!recipeId;
+
+              return (
+                <Grid
+                  item
+                  xs={12}
+                  sm={6}
+                  sx={{ width: 320, maxWidth: 320 }}
+                  key={slotKey}
+                >
+                  <Card
+                    sx={{
+                      borderRadius: 2.6,
+                      border: "1px solid #e7ebf3",
+                      overflow: "hidden",
+                      bgcolor: "#fff",
+                      boxShadow: "0 10px 18px rgba(15, 23, 42, 0.06)",
+                      cursor: clickable ? "pointer" : "default",
+                      transition: "transform 120ms ease",
+                      "&:hover": clickable
+                        ? { transform: "translateY(-2px)" }
+                        : {},
+                    }}
+                    onClick={() => {
+                      if (!recipeId) return;
+                      window.location.href = `/recipes/${recipeId}?from=home`;
+                    }}
+                  >
+                    <Box sx={{ position: "relative" }}>
+                      <Box
+                        component="img"
+                        src={img}
+                        alt={name}
+                        sx={{
+                          width: "100%",
+                          height: { xs: 140, sm: 150 },
+                          objectFit: "cover",
+                          filter: recipeId ? "none" : "grayscale(0.35)",
+                        }}
+                      />
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          top: 10,
+                          left: 10,
+                          px: 1.6,
+                          py: 0.65,
+                          borderRadius: 999,
+                          bgcolor: "rgba(255,255,255,0.96)",
+                          border: "1px solid rgba(0,0,0,0.08)",
+                          fontWeight: 950,
+                          fontSize: 13,
+                          lineHeight: 1,
+                          boxShadow: "0 6px 14px rgba(15, 23, 42, 0.10)",
+                        }}
+                      >
+                        {SLOT_LABEL[slotKey]}
+                      </Box>
+                    </Box>
+
+                    <Box
+                      sx={{
+                        px: 1.6,
+                        py: 1.2,
+                        bgcolor: "#fff",
+                        borderTop: "1px solid #eef1f6",
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontWeight: 500,
+                          fontSize: 16,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          opacity: recipeId ? 1 : 0.55,
+                        }}
+                        title={name}
+                      >
+                        {name}
+                      </Typography>
+                    </Box>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        )}
+      </Box>
+
+      {/* Big button */}
+      <Box
+        sx={{
+          px: { xs: 2, sm: 3 },
+          pb: 3,
+          pt: 1.4,
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <Button
+          component={NextLink}
+          href={`/recipes/weekly?dayKey=${titleKey}`}
+          variant="contained"
+          sx={{
+            width: "100%",
+            maxWidth: 460,
+            borderRadius: 2.2,
+            textTransform: "none",
+            fontWeight: 950,
+            fontSize: 16,
+            py: 1.6,
+            boxShadow: "0 16px 30px rgba(47,107,216,0.35)",
+          }}
+        >
+          献立を変更する
+        </Button>
+      </Box>
+
+      {/* footer chips */}
+      <Box
+        sx={{
+          px: { xs: 2, sm: 3 },
+          pb: 2.4,
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 1.2,
+        }}
+      >
+        <Box
+          sx={{
+            px: 2,
+            py: 0.9,
+            borderRadius: 999,
+            fontWeight: 950,
+            fontSize: 13,
+            bgcolor: selectedHasPlan ? "#ffe9ee" : "#f1f3f6",
+            color: selectedHasPlan ? "#d32f2f" : "#111827",
+            border: "1px solid rgba(0,0,0,0.06)",
+          }}
+        >
+          {selectedHasPlan ? "献立あり（選択日）" : "未登録（選択日）"}
+        </Box>
+        <Box
+          sx={{
+            px: 2,
+            py: 0.9,
+            borderRadius: 999,
+            fontWeight: 950,
+            fontSize: 13,
+            bgcolor: "#f1f3f6",
+            color: "#111827",
+            border: "1px solid rgba(0,0,0,0.06)",
+          }}
+        >
+          選択. {mmdd}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
 export default function HomeTodayMenu() {
   const [tab, setTab] = useState(0);
 
@@ -754,13 +954,11 @@ export default function HomeTodayMenu() {
 
   const [monthDate, setMonthDate] = useState(new Date());
 
-  // ✅ 空状態救済用 state
+  // 空状態救済用 state
   const [actionBusy, setActionBusy] = useState(false);
 
-  const [fatigueLoading, setFatigueLoading] = useState(false);
-  const [fatigueError, setFatigueError] = useState("");
-  const [fatigueCandidates, setFatigueCandidates] = useState([]);
-  const [fatigueTargetMeal, setFatigueTargetMeal] = useState("dinner");
+  // 下ゾーン：朝/昼/夜のスライド状態
+  const [slideMealKey, setSlideMealKey] = useState("lunch");
 
   const [toast, setToast] = useState({
     open: false,
@@ -853,6 +1051,11 @@ export default function HomeTodayMenu() {
 
   const selectedDayData = selectedDayKey ? dayDocsByKey[selectedDayKey] : null;
 
+  // 選択日が変わったら、表示は「昼」に戻す
+  useEffect(() => {
+    setSlideMealKey("lunch");
+  }, [selectedDayKey]);
+
   const prevMonth = useCallback(() => {
     setMonthDate(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
@@ -903,27 +1106,22 @@ export default function HomeTodayMenu() {
   );
 
   /** ===============================
-   * ✅ ①案：dailySetsを活用して「今日」を埋める（weeklyTemplates不要）
-   * - 優先：nameに「ズボラ」含む
-   * - 次点：createdAt desc の先頭
-   * - 朝昼夜に同じセットを流し込む
+   * ズボラ用セットを今日に適用
    =============================== */
   const applyZuboraDailySetToToday = useCallback(async () => {
     if (!todayKey) return;
 
     setActionBusy(true);
-    setFatigueError("");
 
     try {
       const dailyRef = collection(db, COLLECTION_DAILYSETS);
 
-      // createdAt が無いと orderBy で落ちるので、ここは try/catch で保険を掛ける
+      // createdAt が無いと orderBy で落ちるので、try/catch fallback
       let snap;
       try {
         const qDaily = query(dailyRef, orderBy("createdAt", "desc"), limit(30));
         snap = await getDocs(qDaily);
       } catch (e) {
-        // createdAt が無い時用：最小限 fallback（limitだけ）
         console.warn("dailySets orderBy(createdAt) failed. fallback:", e);
         const qDaily = query(dailyRef, limit(30));
         snap = await getDocs(qDaily);
@@ -931,7 +1129,7 @@ export default function HomeTodayMenu() {
 
       if (!snap || snap.empty) {
         showToast(
-          "献立テンプレ（dailySets）がまだ無いよ。先に作ってね。",
+          "献立レシピの登録がされていません。先に献立レシピの登録をおこなってください。",
           "error"
         );
         return;
@@ -944,13 +1142,16 @@ export default function HomeTodayMenu() {
 
       const dailySetId = chosen?.id;
       if (!dailySetId) {
-        showToast("ズボラ用セットが見つからなかったよ。", "error");
+        showToast(
+          "ズボラ用セットが見つかりませんでした。ズボラ用セットの登録をおこなってください。",
+          "error"
+        );
         return;
       }
 
       const dsSnap = await getDoc(doc(db, COLLECTION_DAILYSETS, dailySetId));
       if (!dsSnap.exists()) {
-        showToast("選ばれたテンプレが見つからないよ（dailySets）", "error");
+        showToast("選択されたテンプレートが見つかりませんでした。", "error");
         return;
       }
 
@@ -973,86 +1174,71 @@ export default function HomeTodayMenu() {
       );
 
       await refreshDayAndRecipes(todayKey);
-      showToast("ズボラ用セットで今日の献立を埋めたよ！", "success");
+      showToast("ズボラ用セットで献立を作成しました。", "success");
     } catch (e) {
       console.error("applyZuboraDailySetToToday error:", e);
-      showToast("ズボラ用セット適用でエラーが発生したよ。", "error");
+      showToast("ズボラ用セットの適用に問題が発生しました。", "error");
     } finally {
       setActionBusy(false);
     }
   }, [todayKey, refreshDayAndRecipes, showToast]);
 
   /** ===============================
-   * ② 疲労モード候補（主菜）を取得
-   * - 主菜 & cookingTime<=10（インデックス作成済み想定）
+   * 変更する → /recipes の選択モードへ
    =============================== */
-  const loadFatigueCandidates = useCallback(async () => {
-    setFatigueLoading(true);
-    setFatigueError("");
-    setFatigueCandidates([]);
-
-    try {
-      const recipesCol = collection(db, COLLECTION_RECIPES);
-      const q1 = query(
-        recipesCol,
-        where("category", "==", "main"),
-        where("cookingTime", "<=", 10),
-        limit(20)
-      );
-      const s1 = await getDocs(q1);
-      const list = s1.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-      setFatigueCandidates(list);
-      if (list.length === 0) {
-        setFatigueError(
-          "条件（主菜 & 10分以内）に合うレシピが見つからなかったよ。"
-        );
-      }
-    } catch (e) {
-      console.error("loadFatigueCandidates error:", e);
-      setFatigueError("疲労モード候補の取得でエラーが出たよ。");
-    } finally {
-      setFatigueLoading(false);
-    }
+  const changeSlotRecipe = useCallback((dayKey, mealKey, slotKey) => {
+    if (!dayKey) return;
+    window.location.href = `/recipes?mode=weeklyDay&dayKey=${dayKey}&meal=${mealKey}&slot=${slotKey}&from=home`;
   }, []);
 
   /** ===============================
-   * ③ 疲労モード：候補を「今日」にセット（主菜だけ）
+   * 削除（枠をnullにして templateIds も解除）
    =============================== */
-  const chooseFatigueRecipe = useCallback(
-    async (recipeId) => {
-      if (!todayKey || !recipeId) return;
+  const deleteSlotRecipe = useCallback(
+    async (dayKey, mealKey, slotKey) => {
+      if (!dayKey) return;
 
-      setActionBusy(true);
       try {
-        const current = dayDocsByKey?.[todayKey] || null;
-        const nextMeal = {
-          ...(current?.[fatigueTargetMeal] || {}),
-          main: recipeId,
-        };
+        setActionBusy(true);
+
+        // ローカル即反映
+        setDayDocsByKey((prev) => {
+          const next = { ...prev };
+          const day = next[dayKey] ? { ...next[dayKey] } : {};
+          const meal = day?.[mealKey] ? { ...day[mealKey] } : {};
+          meal[slotKey] = null;
+
+          day[mealKey] = meal;
+
+          // テンプレ適用中に部分削除するとズレるので templateIds を外す
+          if (day?.templateIds?.[mealKey]) {
+            day.templateIds = { ...(day.templateIds || {}), [mealKey]: "" };
+          }
+
+          next[dayKey] = day;
+          return next;
+        });
 
         await setDoc(
-          doc(db, COLLECTION_WEEKLY_DAY, todayKey),
+          doc(db, COLLECTION_WEEKLY_DAY, dayKey),
           {
-            [fatigueTargetMeal]: nextMeal,
+            [mealKey]: { [slotKey]: null },
+            templateIds: { [mealKey]: "" },
             updatedAt: serverTimestamp(),
           },
           { merge: true }
         );
 
-        await refreshDayAndRecipes(todayKey);
-        showToast(
-          `疲労モードで「${MEAL_LABEL[fatigueTargetMeal]}の主菜」をセットしたよ！`,
-          "success"
-        );
+        await refreshDayAndRecipes(dayKey);
+        showToast("削除しました", "success");
       } catch (e) {
-        console.error("chooseFatigueRecipe error:", e);
-        showToast("セット中にエラーが出たよ。", "error");
+        console.error("deleteSlotRecipe error:", e);
+        showToast("削除に失敗しました", "error");
       } finally {
         setActionBusy(false);
       }
     },
-    [todayKey, dayDocsByKey, fatigueTargetMeal, refreshDayAndRecipes, showToast]
+    [refreshDayAndRecipes, showToast]
   );
 
   const selectedHasPlan = useMemo(() => {
@@ -1093,7 +1279,7 @@ export default function HomeTodayMenu() {
           }}
         >
           <Tab label="今日の献立" />
-          <Tab label="カレンダー" />
+          <Tab label="献立カレンダー" />
         </Tabs>
         <Divider />
       </Box>
@@ -1113,18 +1299,13 @@ export default function HomeTodayMenu() {
           loading={loadingRange}
           error={error}
           onApplyZuboraDailySetToToday={applyZuboraDailySetToToday}
-          onLoadFatigueCandidates={loadFatigueCandidates}
-          fatigueCandidates={fatigueCandidates}
-          fatigueLoading={fatigueLoading}
-          fatigueError={fatigueError}
-          fatigueTargetMeal={fatigueTargetMeal}
-          setFatigueTargetMeal={setFatigueTargetMeal}
-          onChooseFatigueRecipe={chooseFatigueRecipe}
+          onChangeSlotRecipe={changeSlotRecipe}
+          onDeleteSlotRecipe={deleteSlotRecipe}
           actionBusy={actionBusy}
         />
       )}
 
-      {/* カレンダー */}
+      {/* 献立カレンダー */}
       {tab === 1 && (
         <Box sx={{ pt: 2 }}>
           <Box
@@ -1189,202 +1370,18 @@ export default function HomeTodayMenu() {
 
             <Divider />
 
-            {/* 下：献立ゾーン */}
-            <Box>
-              <Box sx={{ px: { xs: 1.5, md: 2 }, py: 1.6 }}>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  alignItems={{ xs: "flex-start", sm: "center" }}
-                  justifyContent="space-between"
-                  spacing={1}
-                >
-                  <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
-                    {selectedDayKey
-                      ? `${formatDateTitle(selectedDayKey)} の献立`
-                      : "— の献立"}
-                  </Typography>
-
-                  <Stack direction="row" spacing={1}>
-                    <Chip
-                      label={
-                        selectedHasPlan
-                          ? "献立あり（選択日）"
-                          : "未登録（選択日）"
-                      }
-                      sx={{
-                        fontWeight: 900,
-                        bgcolor: selectedHasPlan ? "#ffebee" : "#f5f5f5",
-                        color: selectedHasPlan ? "#d32f2f" : "#666",
-                      }}
-                    />
-                    <Chip
-                      label={`選択：${
-                        selectedDayKey ? formatMMDD(selectedDayKey) : "-"
-                      }`}
-                      sx={{ fontWeight: 900 }}
-                    />
-                  </Stack>
-                </Stack>
-              </Box>
-
-              <Divider />
-
-              <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-                {(() => {
-                  const rep = getRepresentative3(selectedDayData || null);
-                  const items = [
-                    {
-                      key: "breakfast",
-                      label: "朝の献立",
-                      id: rep.breakfast,
-                      tint: "#fff5ea",
-                    },
-                    {
-                      key: "lunch",
-                      label: "昼の献立",
-                      id: rep.lunch,
-                      tint: "#eef5ff",
-                    },
-                    {
-                      key: "dinner",
-                      label: "夜の献立",
-                      id: rep.dinner,
-                      tint: "#eefaf0",
-                    },
-                  ];
-
-                  if (loadingRange) {
-                    return (
-                      <Grid container spacing={2}>
-                        {items.map((it) => (
-                          <Grid item xs={12} md={4} key={it.key}>
-                            <Box
-                              sx={{
-                                border: "1px solid #eee",
-                                borderRadius: 2,
-                                p: 1.6,
-                              }}
-                            >
-                              <Skeleton width="50%" />
-                              <Skeleton
-                                variant="rectangular"
-                                height={200}
-                                sx={{ mt: 1 }}
-                              />
-                              <Skeleton width="70%" sx={{ mt: 1 }} />
-                              <Skeleton height={44} sx={{ mt: 1 }} />
-                            </Box>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    );
-                  }
-
-                  return (
-                    <Grid container spacing={2}>
-                      {items.map((it) => {
-                        const recipe = it.id ? recipesById[it.id] : null;
-                        const img = recipe?.imageUrl || DEFAULT_IMAGE;
-                        const name = recipe?.recipeName || "未登録";
-
-                        return (
-                          <Grid item xs={12} md={4} key={it.key}>
-                            <Box
-                              sx={{
-                                border: "1px solid #eee",
-                                borderRadius: 2,
-                                overflow: "hidden",
-                                bgcolor: "#fff",
-                                height: "100%",
-                                display: "flex",
-                                flexDirection: "column",
-                              }}
-                            >
-                              {/* 帯 */}
-                              <Box
-                                sx={{
-                                  px: 1.6,
-                                  py: 1.1,
-                                  bgcolor: it.tint,
-                                  borderBottom: "1px solid #eee",
-                                }}
-                              >
-                                <Typography
-                                  sx={{ fontWeight: 900, fontSize: 14 }}
-                                >
-                                  {it.label}
-                                </Typography>
-                              </Box>
-
-                              {/* 中身 */}
-                              <Box
-                                sx={{
-                                  p: 1.6,
-                                  flexGrow: 1,
-                                  display: "flex",
-                                  flexDirection: "column",
-                                }}
-                              >
-                                <Box
-                                  component="img"
-                                  src={img}
-                                  alt={name}
-                                  sx={{
-                                    width: "100%",
-                                    height: { xs: 180, sm: 200, md: 180 },
-                                    objectFit: "cover",
-                                    borderRadius: 2,
-                                    border: "1px solid #eee",
-                                  }}
-                                />
-
-                                <Typography
-                                  sx={{
-                                    fontWeight: 900,
-                                    mt: 1.2,
-                                    mb: 1.2,
-                                    fontSize: 15,
-                                    lineHeight: 1.35,
-                                    display: "-webkit-box",
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: "vertical",
-                                    overflow: "hidden",
-                                    minHeight: "2.8em",
-                                  }}
-                                  title={name}
-                                >
-                                  {name}
-                                </Typography>
-
-                                {/* ✅ 日付連動して weekly へ */}
-                                <Box sx={{ mt: "auto" }}>
-                                  <Button
-                                    component={NextLink}
-                                    href={`/recipes/weekly?dayKey=${
-                                      selectedDayKey || todayKey
-                                    }`}
-                                    variant="contained"
-                                    fullWidth
-                                    sx={{
-                                      borderRadius: 1.8,
-                                      textTransform: "none",
-                                      fontWeight: 900,
-                                      py: 1.1,
-                                      fontSize: 14,
-                                    }}
-                                  >
-                                    レシピを見る
-                                  </Button>
-                                </Box>
-                              </Box>
-                            </Box>
-                          </Grid>
-                        );
-                      })}
-                    </Grid>
-                  );
-                })()}
-              </Box>
+            {/* 下：献立ゾーン（画像イメージのUI） */}
+            <Box sx={{ p: { xs: 1.5, md: 2 } }}>
+              <MealSlidePanelV2
+                mealKey={slideMealKey}
+                onChangeMeal={setSlideMealKey}
+                selectedDayKey={selectedDayKey}
+                todayKey={todayKey}
+                selectedDayData={selectedDayData}
+                recipesById={recipesById}
+                loadingRange={loadingRange}
+                selectedHasPlan={selectedHasPlan}
+              />
             </Box>
           </Box>
         </Box>

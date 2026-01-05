@@ -32,7 +32,6 @@ const addDays = (date, days) => {
 export const calcRemainDays = (expireAt) => {
   const end = expireAt instanceof Date ? expireAt : new Date(expireAt);
   const today = new Date();
-  // 日付だけに揃える（時刻差のブレを減らす）
   const a = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const b = new Date(end.getFullYear(), end.getMonth(), end.getDate());
   const diff = b.getTime() - a.getTime();
@@ -40,9 +39,9 @@ export const calcRemainDays = (expireAt) => {
 };
 
 export const getExpireLevel = (remainDays) => {
-  if (remainDays <= 0) return "DANGER"; // 期限切れ
-  if (remainDays <= 2) return "WARN"; // 1-2日
-  if (remainDays <= 5) return "CAUTION"; // 3-5日
+  if (remainDays <= 0) return "DANGER";
+  if (remainDays <= 2) return "WARN";
+  if (remainDays <= 5) return "CAUTION";
   return "SAFE";
 };
 
@@ -58,10 +57,6 @@ export async function getAppConfigs() {
 }
 
 // ---------- category expire rules ----------
-/**
- * categoryExpireRules (docId = categoryId) の例:
- * { label: "葉物野菜", defaultExpireDays: 4, basis: "USDA_FDA_4C", order: 100 }
- */
 export async function getCategoryExpireRules() {
   const snap = await getDocs(collection(db, "categoryExpireRules"));
   const rules = snap.docs.map((d) => {
@@ -74,7 +69,6 @@ export async function getCategoryExpireRules() {
       order: Number(v.order || 9999),
     };
   });
-
   rules.sort((a, b) => a.order - b.order);
   return rules;
 }
@@ -108,27 +102,21 @@ export async function getFridgeLotsByUser(userId) {
       id: d.id,
       userId: String(v.userId),
 
-      // 食材（スナップショット）
       foodNameSnapshot: String(v.foodNameSnapshot || ""),
 
-      // カテゴリ（スナップショット）
       categoryId: String(v.categoryId || ""),
       categoryLabelSnapshot: String(v.categoryLabelSnapshot || ""),
 
-      // 状態
       state: v.state || "HAVE",
 
-      // 日付
       boughtAt: tsToDate(v.boughtAt),
       expireAt: tsToDate(v.expireAt),
 
-      // 期限の由来：カテゴリ or ユーザー上書き（将来課金）
+      // CATEGORY or USER
       expireSource: v.expireSource || "CATEGORY",
 
-      // メモ（無料で使える）
       memo: String(v.memo || ""),
 
-      // UI用
       isNew: Boolean(v.isNew || false),
 
       createdAt: tsToDate(v.createdAt),
@@ -138,10 +126,10 @@ export async function getFridgeLotsByUser(userId) {
 }
 
 /**
- * カテゴリ期限100%で追加
- * - foodName: ユーザー入力（例: "白菜"）
- * - categoryId: "veg_leafy" など（選択）
- * - boughtAt: 追加日
+ * 追加（カテゴリ期限100% + custom例外）
+ *
+ * - 通常カテゴリ: rule.defaultExpireDays で expireAt 計算、expireSource="CATEGORY"
+ * - custom: customExpireDays（残り日数）で expireAt 計算、expireSource="USER"
  */
 export async function addFridgeLot({
   userId,
@@ -150,13 +138,29 @@ export async function addFridgeLot({
   state = "HAVE",
   boughtAt = new Date(),
   memo = "",
+  customExpireDays, // ← custom のときだけ使う（残り日数）
 }) {
   const rule = await getCategoryExpireRule(categoryId);
-  if (!rule) {
-    throw new Error(`categoryExpireRules not found: ${categoryId}`);
-  }
+  if (!rule) throw new Error(`categoryExpireRules not found: ${categoryId}`);
 
-  const expireAt = addDays(boughtAt, rule.defaultExpireDays);
+  const isCustom = rule.id === "custom";
+
+  let expireAt;
+  let expireSource;
+
+  if (isCustom) {
+    const days = Number(customExpireDays);
+    if (!Number.isFinite(days) || days <= 0) {
+      throw new Error(
+        "customExpireDays must be a positive number for custom category."
+      );
+    }
+    expireAt = addDays(boughtAt, days);
+    expireSource = "USER";
+  } else {
+    expireAt = addDays(boughtAt, rule.defaultExpireDays);
+    expireSource = "CATEGORY";
+  }
 
   const ref = await addDoc(collection(db, "fridgeLots"), {
     userId,
@@ -168,7 +172,7 @@ export async function addFridgeLot({
     state,
     boughtAt,
     expireAt,
-    expireSource: "CATEGORY",
+    expireSource,
 
     memo: String(memo || ""),
 
@@ -201,7 +205,6 @@ export async function deleteFridgeLot(lotId) {
   await deleteDoc(ref);
 }
 
-// メモ更新（無料でも使う）
 export async function updateFridgeLotMemo(lotId, memo) {
   const ref = doc(db, "fridgeLots", lotId);
   await updateDoc(ref, {

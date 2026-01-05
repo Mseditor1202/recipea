@@ -80,7 +80,34 @@ function IngredientRow({ name, quantity }) {
 
 export default function RecipeDetailPage() {
   const router = useRouter();
-  const { id } = router.query;
+  const { id, from, back } = router.query;
+
+  // ✅ back を安全に復元（/recipes か /home だけ許可）
+  const getSafeBackHref = () => {
+    if (typeof back !== "string" || !back) return null;
+
+    try {
+      const decoded = decodeURIComponent(back);
+
+      // 外部URLや変な遷移を防止（最低限：アプリ内パスのみ許可）
+      if (decoded.startsWith("/recipes")) return decoded;
+      if (decoded.startsWith("/home")) return decoded;
+
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const safeBack = getSafeBackHref();
+
+  const backHref = safeBack ?? (from === "home" ? "/home" : "/recipes");
+
+  const backLabel = safeBack
+    ? "レシピ一覧に戻る"
+    : from === "home"
+    ? "ホームに戻る"
+    : "レシピ一覧に戻る";
 
   const [recipe, setRecipe] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -92,9 +119,8 @@ export default function RecipeDetailPage() {
     soup: "汁物",
   };
 
-  // --- 詳細データ取得 ---
   useEffect(() => {
-    if (!id) return; // ルーターがまだ準備中のとき対策
+    if (!id) return;
 
     const fetchRecipe = async () => {
       try {
@@ -103,7 +129,7 @@ export default function RecipeDetailPage() {
 
         if (!snap.exists()) {
           alert("レシピが見つかりませんでした");
-          router.push("/recipes");
+          router.push(backHref); // ✅ ここを backHref に
           return;
         }
 
@@ -112,12 +138,12 @@ export default function RecipeDetailPage() {
       } catch (err) {
         console.error("レシピ取得エラー:", err);
         alert("レシピの取得中にエラーが発生しました");
-        router.push("/recipes");
+        router.push(backHref); // ✅ ここも backHref に
       }
     };
 
     fetchRecipe();
-  }, [id, router]);
+  }, [id, router, backHref]);
 
   const handleDelete = async () => {
     if (!recipe) return;
@@ -127,7 +153,7 @@ export default function RecipeDetailPage() {
     try {
       await deleteDoc(doc(db, "recipes", recipe.id));
       alert("レシピを削除しました");
-      router.push("/recipes");
+      router.push(backHref); // ✅ 削除後も backHref に戻す
     } catch (err) {
       console.error("削除エラー:", err);
       alert("削除に失敗しました");
@@ -146,12 +172,12 @@ export default function RecipeDetailPage() {
     return null;
   }
 
-  // 👉 ここで「動画があるかどうか」を判定
+  // 「動画があるかどうか」を判定
   const embedUrl = getEmbedUrl(recipe.videoUrl);
 
   const isMine = recipe.authorId && recipe.authorId === auth.currentUser?.uid;
 
-  // 🔹 具材と調味料をそれぞれ配列として扱う（なければ []）
+  //  具材と調味料をそれぞれ配列として扱う（なければ []）
   const ingredients = Array.isArray(recipe.ingredients)
     ? recipe.ingredients
     : [];
@@ -162,8 +188,8 @@ export default function RecipeDetailPage() {
 
   return (
     <Box sx={{ maxWidth: 800, mx: "auto", mt: 4, px: 2 }}>
-      <Button onClick={() => router.push("/recipes")} sx={{ mb: 2 }}>
-        ← レシピ一覧に戻る
+      <Button onClick={() => router.push(backHref)} sx={{ mb: 2 }}>
+        ← {backLabel}
       </Button>
 
       <Card>

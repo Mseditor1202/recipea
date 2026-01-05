@@ -9,13 +9,13 @@ export default function Navbar() {
       {" | "}
       <Link href="/recipes/weekly">献立をつくる</Link>
       {" | "}
-      <Link href="/recipes/dailyset">献立テンプレ</Link>
+      <Link href="/recipes/dailyset">献立レシピ</Link>
       {" | "}
-      <Link href="/recipes">レシピ一覧</Link>
+      <Link href="/recipes">レシピ検索</Link>
       {" | "}
-      <Link href="/recipes/createpost">レシピ登録</Link>
+      <Link href="/fridge">食材登録をする</Link>
       {" | "}
-      <Link href="/createrecipe">買い物リスト</Link>
+      <Link href="/shopping">買い物リスト</Link>
       {" | "}
       {isAuth ? (
         <Link href="/auth/logout">ログアウト</Link>

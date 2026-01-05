@@ -167,7 +167,7 @@ export default function DailySetsListPage() {
   // ✅ スロット単位で recipes 一覧へ（セットモード）
   const handleChangeSlotRecipe = (dailySetId, slotKey) => {
     router.push(
-      `/recipes?mode=dailySet&slot=${slotKey}&dailySetId=${dailySetId}`
+      `/recipes?mode=dailySet&slot=${slotKey}&dailySetId=${dailySetId}&from=dailyset`
     );
   };
 
@@ -196,7 +196,7 @@ export default function DailySetsListPage() {
       ? recipe.imageUrl || DEFAULT_IMAGE
       : DEFAULT_IMAGE;
     const title = hasRecipe ? recipe.recipeName || "名称未設定" : "未設定";
-    const buttonLabel = hasRecipe ? "このレシピを変更" : "レシピをセット";
+    const buttonLabel = hasRecipe ? "レシピを変更する" : "レシピをセット";
 
     return (
       <Box>
