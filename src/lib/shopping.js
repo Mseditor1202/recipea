@@ -32,10 +32,6 @@ const addDays = (date, days) => {
 const pad2 = (n) => String(n).padStart(2, "0");
 const toDateKey = (d) =>
   `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-const parseDateKey = (key) => {
-  const [y, m, d] = key.split("-").map(Number);
-  return new Date(y, m - 1, d);
-};
 
 const PLAN_RETENTION_DAYS = { FREE: 7, PRO: 90 };
 
@@ -51,10 +47,13 @@ export async function getUserPlan(userId) {
 }
 
 // =====================================================
-// shoppingItems（チェック=今回は買わない へ統一）
+// shoppingItems（skip=今回は買わない）
+// - sources: 展開用（rawTextで数量表現）
+// - memo: メモ
 // =====================================================
 
 export async function getShoppingItemsByUser(userId) {
+  // インデックス回避のため orderBy しない（フロントでソート）
   const q = query(
     collection(db, "shoppingItems"),
     where("userId", "==", userId)
@@ -77,7 +76,7 @@ export async function getShoppingItemsByUser(userId) {
       customExpireDays:
         v.customExpireDays != null ? Number(v.customExpireDays) : null,
 
-      // ✅ 今回の仕様：skip = 今回は買わない
+      // ✅ 仕様：skip = 今回は買わない
       skip,
 
       // status: TODO | SKIP | SYNCED（古いデータはTODO扱い）
@@ -93,9 +92,9 @@ export async function getShoppingItemsByUser(userId) {
       createdAt: tsToDate(v.createdAt),
       updatedAt: tsToDate(v.updatedAt),
 
-      // 由来（draft確定時に入る）
-      draftSessionId: v.draftSessionId || null,
-      draftSources: Array.isArray(v.draftSources) ? v.draftSources : [],
+      // ✅ 追加：展開（数量rawText）とメモ
+      sources: Array.isArray(v.sources) ? v.sources : [],
+      memo: String(v.memo || ""),
     };
   });
 
@@ -127,8 +126,11 @@ export async function addShoppingItem({
     // ✅ 新仕様
     skip: false,
     status: "TODO",
-
     syncedToFridge: false,
+
+    // ✅ 追加：手動追加は sources 空、memo 空
+    sources: [],
+    memo: "",
 
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -147,6 +149,15 @@ export async function setShoppingItemSkip(itemId, skip) {
 
     status: skip ? "SKIP" : "TODO",
     skippedAt: skip ? serverTimestamp() : null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// ✅ メモ保存（買い物リスト側）
+export async function setShoppingItemMemo(itemId, memo) {
+  const ref = doc(db, "shoppingItems", itemId);
+  await updateDoc(ref, {
+    memo: String(memo || ""),
     updatedAt: serverTimestamp(),
   });
 }
@@ -342,7 +353,7 @@ export async function generateShoppingDraftFromPlans({
           const sourceRow = {
             recipeId,
             recipeName,
-            rawText: row.rawText,
+            rawText: row.rawText, // ✅ 数量テキストはここに残す（合計しない）
             mealKey,
             slotKey,
             dayKey,
@@ -392,7 +403,6 @@ export async function generateShoppingDraftFromPlans({
       categoryLabelSnapshot: "カスタム",
       customExpireDays: 3,
 
-      // ✅ メモ（ドラフトUIで編集）
       memo: "",
 
       createdAt: serverTimestamp(),
@@ -440,7 +450,6 @@ export async function getDraftItems(sessionId) {
       customExpireDays:
         v.customExpireDays != null ? Number(v.customExpireDays) : 3,
 
-      // ✅ memo を返す（UIで使う）
       memo: String(v.memo || ""),
 
       createdAt: tsToDate(v.createdAt),
@@ -464,7 +473,6 @@ export async function setDraftItemSkip(sessionId, itemId, skip) {
   await updateDoc(ref, { skip: !!skip, updatedAt: serverTimestamp() });
 }
 
-// ✅ memo 保存（ドラフトUIから呼ぶ）
 export async function setDraftItemMemo(sessionId, itemId, memo) {
   const ref = doc(db, "shoppingDraftSessions", sessionId, "items", itemId);
   await updateDoc(ref, {
@@ -474,6 +482,7 @@ export async function setDraftItemMemo(sessionId, itemId, memo) {
 }
 
 // ✅ DRAFTを確定：skip=false のものを shoppingItems に追加
+// ✅ 履歴（draftSessionId等）は持たない
 export async function applyDraftToShoppingItems({ userId, sessionId }) {
   const session = await getDraftSession(sessionId);
   if (!session) throw new Error("Draft session not found");
@@ -494,20 +503,20 @@ export async function applyDraftToShoppingItems({ userId, sessionId }) {
       customExpireDays:
         t.categoryId === "custom" ? Number(t.customExpireDays || 3) : null,
 
-      // ✅ 新仕様：確定したものは「買う」なのでskip=false
       skip: false,
       status: "TODO",
-
       syncedToFridge: false,
 
-      draftSessionId: sessionId,
-      draftSources: t.sources || [],
+      // ✅ ここがポイント：買い物リスト側でも同じ仕様（数量rawText/sources, memo）
+      sources: t.sources || [],
+      memo: String(t.memo || ""),
 
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
   });
 
+  // session自体は「確認済み」印として残してOK（消したいなら後で掃除）
   batch.update(doc(db, "shoppingDraftSessions", sessionId), {
     status: "APPLIED",
     appliedAt: serverTimestamp(),
