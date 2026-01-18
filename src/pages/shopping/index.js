@@ -1,5 +1,11 @@
-// pages/shopping/index.jsx
-import { useEffect, useMemo, useState, useCallback } from "react";
+// pages/shopping/index.js
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
 import NextLink from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -18,61 +24,43 @@ import {
   ListItemIcon,
   ListItemText,
   Checkbox,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  IconButton,
   Skeleton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  ToggleButtonGroup,
-  ToggleButton,
   Alert,
-  Snackbar,
   Tooltip,
-  IconButton,
-  Collapse,
   CircularProgress,
+  Switch,
+  FormControlLabel,
 } from "@mui/material";
+
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import NotesIcon from "@mui/icons-material/Notes";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
 
 import { auth } from "@/lib/firebase";
-import { getCategoryExpireRules, getFridgeLotsByUser } from "@/lib/fridge";
 import {
   getShoppingItemsByUser,
   addShoppingItem,
   setShoppingItemSkip,
   setShoppingItemMemo,
   syncActiveItemsToFridge,
-  getUserPlan,
   generateShoppingDraftFromPlans,
+  deleteShoppingItem,
+  markAllPurchased,
+  deleteAllShoppingItems,
+  setShoppingItemPurchased,
+  getShoppingNotesByUser,
+  setShoppingNotesByUser,
 } from "@/lib/shopping";
 
-/** =========================
- * helpers
- ========================= */
-
-const isWithinDays = (date, days) => {
-  if (!date) return false;
-  const now = new Date();
-  const diff = now.getTime() - new Date(date).getTime();
-  return diff <= days * 24 * 60 * 60 * 1000;
-};
-
-const formatDateJP = (date) => {
-  if (!date) return "";
-  const d = date instanceof Date ? date : new Date(date);
-  return d.toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-};
-
+// ------- UI helpers -------
 const MEAL_LABEL = { breakfast: "朝", lunch: "昼", dinner: "夜" };
 const SLOT_LABEL = { staple: "主食", main: "主菜", side: "副菜", soup: "汁物" };
 
@@ -85,109 +73,75 @@ const sourceLine = (src) => {
   return `${day} ${meal}${slot}｜${recipe}${raw ? `：${raw}` : ""}`;
 };
 
-// fridgeLots を name完全一致で簡易判定（思想どおり：管理対象じゃない）
-function buildFridgeNameIndex(fridgeLots) {
-  const map = new Map();
-  const rank = { NONE: 0, FEW: 1, HAVE: 2 };
-
-  for (const lot of fridgeLots || []) {
-    const name = String(lot.foodNameSnapshot || "").trim();
-    if (!name) continue;
-
-    const key = name.toLowerCase();
-    const state = lot.state || "HAVE";
-    const prev = map.get(key);
-    if (!prev) map.set(key, state);
-    else if ((rank[state] ?? 2) > (rank[prev] ?? 2)) map.set(key, state);
-  }
-  return map;
-}
-
-function getFridgeStateForName(index, name) {
-  if (!name) return "UNKNOWN";
-  return index.get(String(name).trim().toLowerCase()) || "UNKNOWN";
-}
-
-const fridgeBadge = (state) => {
-  switch (state) {
-    case "HAVE":
-      return { label: "在庫: ある", color: "success", variant: "filled" };
-    case "FEW":
-      return { label: "在庫: すこし", color: "warning", variant: "filled" };
-    case "NONE":
-      return { label: "在庫: なし", color: "error", variant: "filled" };
-    default:
-      return { label: "在庫: 不明", color: "default", variant: "outlined" };
-  }
-};
-
-// 1件ずつ展開状態保持（上限なし）
-const OPEN_KEY = (userId) => `shoppingOpenMap:${userId}`;
-function loadOpenMap(userId) {
-  if (!userId) return {};
+// 展開状態保持
+const OPEN_KEY = "shoppingOpenMap:v2";
+const loadOpenMap = () => {
   try {
-    const raw = localStorage.getItem(OPEN_KEY(userId));
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
+    const raw = localStorage.getItem(OPEN_KEY);
+    return raw ? JSON.parse(raw) || {} : {};
   } catch {
     return {};
   }
-}
-function saveOpenMap(userId, openMap) {
-  if (!userId) return;
+};
+const saveOpenMap = (map) => {
   try {
-    localStorage.setItem(OPEN_KEY(userId), JSON.stringify(openMap || {}));
-  } catch {
-    // ignore
-  }
-}
+    localStorage.setItem(OPEN_KEY, JSON.stringify(map || {}));
+  } catch {}
+};
 
-/** =========================
- * Page
- ========================= */
+// ✅ Draft からの「追加件数」受け取りキー（クエリを使わない）
+const SHOPPING_ADDED_KEY = "shoppingAddedCount:v1";
+
 export default function ShoppingPage() {
   const router = useRouter();
+
   const [user, setUser] = useState(null);
 
   const [loading, setLoading] = useState(true);
-  const [rulesLoading, setRulesLoading] = useState(true);
-
   const [items, setItems] = useState([]);
-  const [rules, setRules] = useState([]);
 
-  // plan
-  const [planInfo, setPlanInfo] = useState({ plan: "FREE", retentionDays: 7 });
-
-  // add form
   const [name, setName] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
-  const [customExpireDays, setCustomExpireDays] = useState("3");
 
-  // syncing
+  const [notes, setNotes] = useState("");
+  const [notesBusy, setNotesBusy] = useState(false);
+
+  const [openMap, setOpenMap] = useState({});
+  const toggleOpen = (id) =>
+    setOpenMap((p) => ({ ...(p || {}), [id]: !p?.[id] }));
+
+  const [memoDraft, setMemoDraft] = useState({});
+  const [memoSaving, setMemoSaving] = useState({});
+  const [skipSaving, setSkipSaving] = useState({});
+  const [purchasedSaving, setPurchasedSaving] = useState({});
+  const [deleteBusy, setDeleteBusy] = useState({});
+
   const [syncing, setSyncing] = useState(false);
 
-  // generate draft dialog
   const [genOpen, setGenOpen] = useState(false);
   const [genDays, setGenDays] = useState(2);
   const [genBusy, setGenBusy] = useState(false);
   const [genError, setGenError] = useState("");
 
-  // in-page errors
-  const [error, setError] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // 展開状態
-  const [openMap, setOpenMap] = useState({});
+  // ✅ UIフリーズ（Tooltip/展開抑制）
+  const [uiFreezing, setUiFreezing] = useState(false);
 
-  // memo local draft
-  const [memoDraft, setMemoDraft] = useState({}); // { [itemId]: string }
-  const [memoSaving, setMemoSaving] = useState({}); // { [itemId]: bool }
-  const [skipSaving, setSkipSaving] = useState({}); // { [itemId]: bool }
-
-  // toast
+  // ✅ 自前Toast（Portal/Transitionなし）
   const [toast, setToast] = useState({ open: false, msg: "", sev: "success" });
+  const toastTimerRef = useRef(null);
   const showToast = useCallback((msg, sev = "success") => {
     setToast({ open: true, msg, sev });
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setToast((p) => ({ ...p, open: false }));
+    }, 2500);
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
   }, []);
 
   // auth
@@ -196,56 +150,36 @@ export default function ShoppingPage() {
     return () => unsub();
   }, []);
 
-  // load rules once logged in
+  // restore open map
   useEffect(() => {
-    if (!user) return;
-    (async () => {
-      setRulesLoading(true);
-      const r = await getCategoryExpireRules();
-      setRules(r);
-      if (!selectedCategoryId && r.length > 0) setSelectedCategoryId(r[0].id);
-      setRulesLoading(false);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+    setOpenMap(loadOpenMap());
+  }, []);
+  useEffect(() => {
+    saveOpenMap(openMap);
+  }, [openMap]);
 
-  // refresh
+  // ✅ Draft確定後トースト：sessionStorage から読む
+  useEffect(() => {
+    try {
+      const v = sessionStorage.getItem(SHOPPING_ADDED_KEY);
+      if (!v) return;
+      sessionStorage.removeItem(SHOPPING_ADDED_KEY);
+      const n = Number(v || 0);
+      if (n > 0) showToast(`買い物リストに追加しました（${n}件）`, "success");
+    } catch {}
+  }, [showToast]);
+
   const refresh = useCallback(async () => {
     if (!user) return;
-
     setLoading(true);
-    setError("");
 
     try {
-      // plan + shopping items
-      const p = await getUserPlan(user.uid);
-      setPlanInfo(p);
-
       const list = await getShoppingItemsByUser(user.uid);
+      setItems(list);
 
-      // fridge state (A案：都度取得して簡易判定)
-      const fridgeLots = await getFridgeLotsByUser(user.uid);
-      const index = buildFridgeNameIndex(fridgeLots);
-
-      const decorated = list.map((it) => ({
-        ...it,
-        fridgeState: getFridgeStateForName(index, it.name),
-      }));
-
-      setItems(decorated);
-
-      // openMap restore
-      setOpenMap(loadOpenMap(user.uid));
-
-      // memoDraft init
       const md = {};
-      decorated.forEach((it) => {
-        md[it.id] = it.memo || "";
-      });
+      list.forEach((it) => (md[it.id] = it.memo || ""));
       setMemoDraft(md);
-    } catch (e) {
-      console.error(e);
-      setError("買い物リストを読み込めませんでした。");
     } finally {
       setLoading(false);
     }
@@ -256,96 +190,111 @@ export default function ShoppingPage() {
     refresh();
   }, [user, refresh]);
 
-  // openMap persist
+  // notes load
   useEffect(() => {
     if (!user) return;
-    saveOpenMap(user.uid, openMap);
-  }, [openMap, user]);
-
-  const selectedRule = rules.find((r) => r.id === selectedCategoryId);
-  const isCustomSelected = selectedCategoryId === "custom";
-  const customDaysValid =
-    !isCustomSelected ||
-    (Number(customExpireDays) > 0 && Number.isFinite(Number(customExpireDays)));
-
-  // split
-  const { activeItems, historyItems } = useMemo(() => {
-    const active = [];
-    const history = [];
-
-    for (const it of items) {
-      if (it.status === "SYNCED") {
-        // 履歴は保持期間内だけ表示（FREE=7 / PRO=90）
-        if (isWithinDays(it.syncedAt, planInfo.retentionDays)) history.push(it);
-      } else {
-        active.push(it);
+    (async () => {
+      try {
+        const v = await getShoppingNotesByUser(user.uid);
+        setNotes(v);
+      } catch (e) {
+        console.error(e);
       }
-    }
+    })();
+  }, [user]);
 
-    // history: syncedAt 新しい順
-    history.sort(
-      (a, b) => (b.syncedAt?.getTime?.() || 0) - (a.syncedAt?.getTime?.() || 0)
-    );
+  // notes autosave
+  useEffect(() => {
+    if (!user) return;
 
-    return { activeItems: active, historyItems: history };
-  }, [items, planInfo.retentionDays]);
+    const t = setTimeout(async () => {
+      try {
+        setNotesBusy(true);
+        await setShoppingNotesByUser(user.uid, notes);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setNotesBusy(false);
+      }
+    }, 600);
 
-  const counts = useMemo(() => {
-    const total = activeItems.length;
-    const skipped = activeItems.filter((x) => x.skip).length;
-    const buy = total - skipped;
+    return () => clearTimeout(t);
+  }, [notes, user]);
 
-    const have = activeItems.filter((x) => x.fridgeState === "HAVE").length;
-    const few = activeItems.filter((x) => x.fridgeState === "FEW").length;
-    const none = activeItems.filter((x) => x.fridgeState === "NONE").length;
-    const unk = activeItems.filter((x) => x.fridgeState === "UNKNOWN").length;
+  const activeItems = useMemo(
+    () => items.filter((x) => x.status !== "SYNCED"),
+    [items]
+  );
 
-    return { total, skipped, buy, have, few, none, unk };
-  }, [activeItems]);
+  const skipCount = useMemo(
+    () => activeItems.filter((x) => x.skip).length,
+    [activeItems]
+  );
+  const boughtCount = useMemo(
+    () => activeItems.filter((x) => x.purchased).length,
+    [activeItems]
+  );
+  const unboughtCount = useMemo(
+    () => activeItems.filter((x) => !x.skip && !x.purchased).length,
+    [activeItems]
+  );
 
-  const pendingSyncItems = useMemo(() => {
-    // 冷蔵庫に反映するのは「skip=false」かつ未反映のみ
-    return activeItems.filter((x) => !x.skip && !x.syncedToFridge);
-  }, [activeItems]);
+  const pendingSyncItems = useMemo(
+    () => activeItems.filter((x) => !x.skip && !x.syncedToFridge),
+    [activeItems]
+  );
+
+  const safeTooltipProps = {
+    PopperProps: { disablePortal: true },
+    disableHoverListener: uiFreezing,
+    disableFocusListener: uiFreezing,
+    disableTouchListener: uiFreezing,
+  };
 
   const addItem = async () => {
     if (!user) return;
     const n = (name || "").trim();
     if (!n) return;
-    if (!selectedRule) return;
-    if (!customDaysValid) return;
 
-    await addShoppingItem({
-      userId: user.uid,
-      name: n,
-      categoryId: selectedRule.id,
-      categoryLabelSnapshot: selectedRule.label,
-      customExpireDays:
-        selectedRule.id === "custom" ? Number(customExpireDays || 3) : null,
-    });
+    try {
+      await addShoppingItem({
+        userId: user.uid,
+        name: n,
+        categoryId: "custom",
+        categoryLabelSnapshot: "カスタム",
+        customExpireDays: 3,
+        memo: "",
+        sources: [],
+      });
 
-    setName("");
-    await refresh();
-  };
-
-  const toggleOpen = (itemId) => {
-    setOpenMap((prev) => ({ ...(prev || {}), [itemId]: !prev?.[itemId] }));
+      setName("");
+      await refresh();
+      showToast("追加しました");
+    } catch (e) {
+      console.error(e);
+      showToast("追加に失敗しました", "error");
+    }
   };
 
   const toggleSkip = async (it) => {
     const next = !it.skip;
 
-    // optimistic
     setItems((prev) =>
-      prev.map((x) => (x.id === it.id ? { ...x, skip: next } : x))
+      prev.map((x) =>
+        x.id === it.id
+          ? { ...x, skip: next, purchased: next ? false : x.purchased }
+          : x
+      )
     );
     setSkipSaving((p) => ({ ...p, [it.id]: true }));
 
     try {
       await setShoppingItemSkip(it.id, next);
+      if (next && it.purchased) {
+        await setShoppingItemPurchased(it.id, false);
+      }
     } catch (e) {
       console.error(e);
-      // rollback
       setItems((prev) =>
         prev.map((x) => (x.id === it.id ? { ...x, skip: !next } : x))
       );
@@ -355,42 +304,81 @@ export default function ShoppingPage() {
     }
   };
 
-  const onChangeMemo = (itemId, v) => {
-    setMemoDraft((prev) => ({ ...prev, [itemId]: v }));
+  const togglePurchased = async (it) => {
+    if (it.skip) return;
+    const next = !it.purchased;
+
+    setItems((prev) =>
+      prev.map((x) => (x.id === it.id ? { ...x, purchased: next } : x))
+    );
+    setPurchasedSaving((p) => ({ ...p, [it.id]: true }));
+
+    try {
+      await setShoppingItemPurchased(it.id, next);
+    } catch (e) {
+      console.error(e);
+      setItems((prev) =>
+        prev.map((x) => (x.id === it.id ? { ...x, purchased: !next } : x))
+      );
+      showToast("更新に失敗しました", "error");
+    } finally {
+      setPurchasedSaving((p) => ({ ...p, [it.id]: false }));
+    }
   };
+
+  const onChangeMemo = (itemId, v) =>
+    setMemoDraft((p) => ({ ...p, [itemId]: v }));
 
   const saveMemo = async (it) => {
     const v = memoDraft[it.id] ?? "";
-
     setMemoSaving((p) => ({ ...p, [it.id]: true }));
     try {
       await setShoppingItemMemo(it.id, v);
-
-      // items側も更新して整合
       setItems((prev) =>
         prev.map((x) => (x.id === it.id ? { ...x, memo: v } : x))
       );
-
-      showToast("メモを保存しました", "success");
+      showToast("メモを保存しました");
     } catch (e) {
       console.error(e);
-      showToast("メモの保存に失敗しました", "error");
+      showToast("メモ保存に失敗しました", "error");
     } finally {
       setMemoSaving((p) => ({ ...p, [it.id]: false }));
+    }
+  };
+
+  const onDeleteOne = async (it) => {
+    if (!it?.id) return;
+    setDeleteBusy((p) => ({ ...p, [it.id]: true }));
+
+    setItems((prev) => prev.filter((x) => x.id !== it.id));
+
+    try {
+      await deleteShoppingItem(it.id);
+      showToast("削除しました");
+    } catch (e) {
+      console.error(e);
+      showToast("削除に失敗しました", "error");
+      await refresh();
+    } finally {
+      setDeleteBusy((p) => ({ ...p, [it.id]: false }));
     }
   };
 
   const syncToFridge = async () => {
     if (!user) return;
     if (pendingSyncItems.length === 0) return;
-    setSyncing(true);
 
+    setSyncing(true);
     try {
       await syncActiveItemsToFridge({
         userId: user.uid,
         items: pendingSyncItems,
       });
       await refresh();
+      showToast("冷蔵庫に追加しました");
+    } catch (e) {
+      console.error(e);
+      showToast("冷蔵庫反映に失敗しました", "error");
     } finally {
       setSyncing(false);
     }
@@ -398,22 +386,67 @@ export default function ShoppingPage() {
 
   const onGenerateDraft = async () => {
     if (!user) return;
+    if (genBusy) return;
+
     setGenBusy(true);
     setGenError("");
+
     try {
       const { sessionId } = await generateShoppingDraftFromPlans({
         userId: user.uid,
         rangeDays: genDays,
       });
+
+      // ✅ 遷移前にUIを畳む（routeChangeStartでやらない）
       setGenOpen(false);
+      setConfirmOpen(false);
+      setToast((p) => ({ ...p, open: false }));
+      setUiFreezing(true);
+      setOpenMap({});
+
+      await new Promise((r) => requestAnimationFrame(r));
       router.push(`/shopping/draft/${sessionId}`);
     } catch (e) {
       console.error(e);
       setGenError(
-        "献立から生成できませんでした。献立/レシピ/材料の設定を確認してください。"
+        "献立から生成できませんでした。献立/レシピ/材料の設定を確認してね。"
       );
+      setUiFreezing(false);
     } finally {
       setGenBusy(false);
+    }
+  };
+
+  const onMarkAllPurchased = async () => {
+    if (!user) return;
+    if (unboughtCount === 0) return;
+
+    setBulkBusy(true);
+    try {
+      await markAllPurchased({ userId: user.uid });
+      await refresh();
+      showToast("買うものを一括で「買った」にしました", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("一括更新に失敗しました", "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const onDeleteAll = async () => {
+    if (!user) return;
+    setBulkBusy(true);
+    try {
+      await deleteAllShoppingItems({ userId: user.uid });
+      setConfirmOpen(false);
+      await refresh();
+      showToast("買い物リストを全件削除しました", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("削除に失敗しました", "error");
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -424,9 +457,6 @@ export default function ShoppingPage() {
       <Box sx={{ p: 3 }}>
         <Typography variant="h6" fontWeight={900}>
           ログインしてください
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 1, opacity: 0.75 }}>
-          買い物リストはユーザーごとに保存されます。
         </Typography>
       </Box>
     );
@@ -446,9 +476,9 @@ export default function ShoppingPage() {
             <Typography variant="h5" fontWeight={950}>
               買い物リスト
             </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.75, lineHeight: 1.7 }}>
-              ✅「今回は買わない」をONにしたものは <b>冷蔵庫に追加しません</b>。
-              展開すると「何の献立で使うか」「数量（rawText）」とメモが見れます。
+            <Typography variant="body2" sx={{ opacity: 0.75, lineHeight: 1.6 }}>
+              「買わない」は<b>冷蔵庫に追加しません</b>
+              。個別削除（ゴミ箱）もできます。
             </Typography>
           </Box>
 
@@ -482,203 +512,173 @@ export default function ShoppingPage() {
             </Button>
           </Stack>
         </Stack>
-
-        <Stack direction="row" flexWrap="wrap" gap={1}>
-          <Chip
-            label={`買う ${counts.buy}件`}
-            color="primary"
-            sx={{ fontWeight: 900 }}
-          />
-          <Chip
-            label={`今回は買わない ${counts.skipped}件`}
-            variant="outlined"
-            sx={{ fontWeight: 900 }}
-          />
-          <Tooltip title="在庫ステータス（完全一致の簡易判定）">
-            <Chip
-              icon={<InfoOutlinedIcon />}
-              label={`在庫: ある${counts.have} / すこし${counts.few} / なし${counts.none} / 不明${counts.unk}`}
-              variant="outlined"
-              sx={{ fontWeight: 900 }}
-            />
-          </Tooltip>
-          <Chip
-            label={`履歴表示: ${planInfo.plan === "PRO" ? "90日" : "7日"}（${
-              planInfo.plan
-            }）`}
-            variant="outlined"
-            sx={{ fontWeight: 900 }}
-          />
-        </Stack>
       </Stack>
 
-      {/* error */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {/* add card */}
-      <Card sx={{ borderRadius: 3, mb: 2 }}>
-        <CardContent>
-          <Typography fontWeight={950} sx={{ mb: 1 }}>
-            手動で追加
+      {/* 生成ダイアログ（Transitionなし） */}
+      <Dialog
+        open={genOpen}
+        onClose={() => (!genBusy ? setGenOpen(false) : null)}
+        maxWidth="xs"
+        fullWidth
+        transitionDuration={0}
+      >
+        <DialogTitle sx={{ fontWeight: 950 }}>献立から生成</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
+            明日から何日分の献立を対象にする？
           </Typography>
 
-          <Stack spacing={1.5}>
-            <TextField
-              fullWidth
-              label="買うもの（自由入力）"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 900 }}>
-                カテゴリ（冷蔵庫期限テンプレ）
-              </Typography>
-
-              {rulesLoading ? (
-                <Stack direction="row" spacing={1}>
-                  <Skeleton variant="rounded" width={120} height={32} />
-                  <Skeleton variant="rounded" width={120} height={32} />
-                  <Skeleton variant="rounded" width={120} height={32} />
-                </Stack>
-              ) : (
-                <Stack direction="row" flexWrap="wrap" gap={1}>
-                  {rules.map((r) => {
-                    const selected = r.id === selectedCategoryId;
-                    const label =
-                      r.id === "custom"
-                        ? r.label
-                        : `${r.label}（${r.defaultExpireDays}日）`;
-
-                    return (
-                      <Chip
-                        key={r.id}
-                        label={label}
-                        clickable
-                        color={selected ? "primary" : "default"}
-                        variant={selected ? "filled" : "outlined"}
-                        onClick={() => setSelectedCategoryId(r.id)}
-                        sx={{ fontWeight: 900 }}
-                      />
-                    );
-                  })}
-                </Stack>
-              )}
-
-              {isCustomSelected && (
-                <Box sx={{ mt: 1.5 }}>
-                  <Divider sx={{ mb: 1.5 }} />
-                  <TextField
-                    fullWidth
-                    type="number"
-                    label="期限（残り日数）"
-                    value={customExpireDays}
-                    onChange={(e) => setCustomExpireDays(e.target.value)}
-                    inputProps={{ min: 1, step: 1 }}
-                    error={!customDaysValid}
-                    helperText={
-                      !customDaysValid
-                        ? "1以上の数字を入れてね"
-                        : "例：3（冷蔵庫に追加した日から3日後が期限）"
-                    }
-                  />
-                </Box>
-              )}
-            </Box>
-
-            <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-              <Button
-                variant="contained"
-                onClick={addItem}
-                disabled={!name.trim() || !selectedRule || !customDaysValid}
-                sx={{ borderRadius: 999, fontWeight: 900, px: 3, py: 1.1 }}
-              >
-                ＋ 追加
-              </Button>
-            </Box>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant={genDays === 2 ? "contained" : "outlined"}
+              onClick={() => setGenDays(2)}
+              sx={{ borderRadius: 999, fontWeight: 900, textTransform: "none" }}
+            >
+              2日分
+            </Button>
+            <Button
+              variant={genDays === 3 ? "contained" : "outlined"}
+              onClick={() => setGenDays(3)}
+              sx={{ borderRadius: 999, fontWeight: 900, textTransform: "none" }}
+            >
+              3日分
+            </Button>
           </Stack>
-        </CardContent>
-      </Card>
 
-      {/* main list */}
-      <Card sx={{ borderRadius: 3 }}>
+          {genError ? (
+            <Alert severity="error" sx={{ mt: 1.5 }}>
+              {genError}
+            </Alert>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setGenOpen(false)}
+            disabled={genBusy}
+            sx={{ fontWeight: 900 }}
+          >
+            キャンセル
+          </Button>
+          <Button
+            onClick={onGenerateDraft}
+            variant="contained"
+            disabled={genBusy}
+            sx={{ fontWeight: 950 }}
+          >
+            {genBusy ? "生成中..." : "生成する"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* list */}
+      <Card sx={{ borderRadius: 3, mb: 2 }}>
         <CardContent>
           <Stack
-            direction="row"
-            alignItems="center"
+            direction={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "flex-start", sm: "center" }}
             justifyContent="space-between"
             sx={{ mb: 1 }}
+            spacing={1}
           >
-            <Typography fontWeight={950}>買うもの</Typography>
-            <Chip
-              size="small"
-              color="primary"
-              label={`冷蔵庫に反映予定 ${pendingSyncItems.length}`}
-            />
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Typography fontWeight={950}>買うもの</Typography>
+              <Chip size="small" label={`買わない ${skipCount}`} />
+              <Chip size="small" label={`買った ${boughtCount}`} />
+              <Chip
+                size="small"
+                color="primary"
+                label={`未購入 ${unboughtCount}`}
+              />
+            </Stack>
+
+            <Stack direction="row" spacing={1} justifyContent="flex-end">
+              <Button
+                variant="contained"
+                startIcon={<DoneAllIcon />}
+                onClick={onMarkAllPurchased}
+                disabled={bulkBusy || unboughtCount === 0}
+                sx={{
+                  borderRadius: 999,
+                  fontWeight: 950,
+                  textTransform: "none",
+                }}
+              >
+                {bulkBusy ? "更新中..." : "一括買った"}
+              </Button>
+
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteOutlineIcon />}
+                onClick={() => setConfirmOpen(true)}
+                disabled={bulkBusy || activeItems.length === 0}
+                sx={{
+                  borderRadius: 999,
+                  fontWeight: 950,
+                  textTransform: "none",
+                }}
+              >
+                リストを削除
+              </Button>
+            </Stack>
           </Stack>
+
+          <Divider sx={{ mb: 1 }} />
 
           {loading ? (
             <Stack spacing={1}>
-              <Skeleton variant="rounded" height={72} />
-              <Skeleton variant="rounded" height={72} />
-              <Skeleton variant="rounded" height={72} />
+              <Skeleton variant="rounded" height={52} />
+              <Skeleton variant="rounded" height={52} />
+              <Skeleton variant="rounded" height={52} />
             </Stack>
           ) : activeItems.length === 0 ? (
             <Typography variant="body2" sx={{ opacity: 0.75 }}>
-              まだ何もありません。上のフォームから追加できます。
+              まだ何もありません。下の「手動で追加」から追加できます。
             </Typography>
           ) : (
             <List disablePadding>
               {activeItems.map((it) => {
                 const isOpen = !!openMap[it.id];
-                const badge = fridgeBadge(it.fridgeState);
                 const memoValue = memoDraft[it.id] ?? "";
                 const memoChanged = (it.memo || "") !== memoValue;
                 const memoBusy = !!memoSaving[it.id];
                 const skipBusy = !!skipSaving[it.id];
-
-                const secondary = it.categoryLabelSnapshot
-                  ? it.categoryId === "custom"
-                    ? `${it.categoryLabelSnapshot}（期限 ${
-                        it.customExpireDays || 3
-                      }日）`
-                    : it.categoryLabelSnapshot
-                  : "";
+                const purchasedBusy = !!purchasedSaving[it.id];
+                const delBusy = !!deleteBusy[it.id];
 
                 return (
                   <Box key={it.id}>
-                    <ListItem
-                      disablePadding
-                      sx={{
-                        borderRadius: 2,
-                        mb: 0.6,
-                        bgcolor: it.skip ? "rgba(0,0,0,0.02)" : "transparent",
-                        "&:hover": { bgcolor: "rgba(0,0,0,0.03)" },
-                      }}
-                    >
+                    <ListItem disablePadding sx={{ borderRadius: 2, mb: 0.6 }}>
                       <ListItemButton
                         sx={{
                           borderRadius: 2,
                           alignItems: "flex-start",
-                          py: 1.2,
+                          py: 1.1,
                         }}
-                        onClick={() => toggleOpen(it.id)}
+                        onClick={() => !uiFreezing && toggleOpen(it.id)}
+                        disabled={uiFreezing}
                       >
                         <ListItemIcon sx={{ minWidth: 44, mt: 0.2 }}>
-                          <Tooltip title="今回は買わない（冷蔵庫にも反映しない）">
+                          <Tooltip
+                            title={
+                              it.skip
+                                ? "買わないON中は買った操作できません"
+                                : "買った"
+                            }
+                            {...safeTooltipProps}
+                          >
                             <span>
                               <Checkbox
                                 edge="start"
-                                checked={!!it.skip}
-                                disabled={skipBusy}
+                                checked={!!it.purchased}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (!skipBusy) toggleSkip(it);
+                                  if (!purchasedBusy && !uiFreezing)
+                                    togglePurchased(it);
                                 }}
+                                disabled={
+                                  it.skip || purchasedBusy || uiFreezing
+                                }
                               />
                             </span>
                           </Tooltip>
@@ -688,47 +688,44 @@ export default function ShoppingPage() {
                           primary={
                             <Stack
                               direction="row"
-                              alignItems="center"
                               spacing={1}
+                              alignItems="center"
                               flexWrap="wrap"
-                              sx={{ pr: 1 }}
                             >
                               <Typography
                                 sx={{
                                   fontWeight: 950,
-                                  textDecoration: it.skip
-                                    ? "line-through"
-                                    : "none",
+                                  textDecoration:
+                                    it.skip || it.purchased
+                                      ? "line-through"
+                                      : "none",
+                                  opacity: it.skip ? 0.7 : 1,
                                 }}
                               >
                                 {it.name}
                               </Typography>
 
-                              <Chip
-                                size="small"
-                                label={badge.label}
-                                color={badge.color}
-                                variant={badge.variant}
-                                sx={{ fontWeight: 900 }}
-                              />
-
                               {it.skip ? (
                                 <Chip
                                   size="small"
-                                  label="今回は買わない"
+                                  label="買わない"
                                   variant="outlined"
-                                  sx={{ fontWeight: 900 }}
+                                />
+                              ) : it.purchased ? (
+                                <Chip
+                                  size="small"
+                                  label="買った"
+                                  color="success"
                                 />
                               ) : (
                                 <Chip
                                   size="small"
                                   label="買う"
                                   color="primary"
-                                  sx={{ fontWeight: 900 }}
                                 />
                               )}
 
-                              {skipBusy && (
+                              {(skipBusy || purchasedBusy) && (
                                 <Chip
                                   size="small"
                                   label="更新中..."
@@ -738,52 +735,89 @@ export default function ShoppingPage() {
                             </Stack>
                           }
                           secondary={
-                            <Stack spacing={0.3} sx={{ mt: 0.4 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{ opacity: 0.75 }}
-                              >
-                                {secondary || "カテゴリ未設定"}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{ opacity: 0.75 }}
-                              >
-                                {it.sources?.length
-                                  ? `由来: ${it.sources.length}件`
-                                  : "由来: なし"}
-                              </Typography>
-                            </Stack>
+                            <Typography
+                              variant="body2"
+                              sx={{ opacity: 0.75, mt: 0.3 }}
+                            >
+                              {it.sources?.length
+                                ? `由来 ${it.sources.length}件`
+                                : ""}
+                            </Typography>
                           }
                         />
+
+                        <Tooltip
+                          title="買わない（冷蔵庫に追加しない）"
+                          {...safeTooltipProps}
+                        >
+                          <span>
+                            <FormControlLabel
+                              onClick={(e) => e.stopPropagation()}
+                              sx={{ mr: 0.5, mt: 0.1 }}
+                              control={
+                                <Switch
+                                  checked={!!it.skip}
+                                  onChange={() => {
+                                    if (!skipBusy && !uiFreezing)
+                                      toggleSkip(it);
+                                  }}
+                                  disabled={skipBusy || uiFreezing}
+                                />
+                              }
+                              label={
+                                <Typography
+                                  variant="caption"
+                                  sx={{ fontWeight: 900 }}
+                                >
+                                  買わない
+                                </Typography>
+                              }
+                              labelPlacement="start"
+                            />
+                          </span>
+                        </Tooltip>
+
+                        <Tooltip title="削除" {...safeTooltipProps}>
+                          <span>
+                            <IconButton
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!uiFreezing) onDeleteOne(it);
+                              }}
+                              disabled={delBusy || uiFreezing}
+                            >
+                              <DeleteOutlineIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
 
                         <IconButton
                           onClick={(e) => {
                             e.stopPropagation();
-                            toggleOpen(it.id);
+                            if (!uiFreezing) toggleOpen(it.id);
                           }}
-                          sx={{ mt: 0.2 }}
+                          sx={{ mt: 0.1 }}
+                          disabled={uiFreezing}
                         >
                           {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                         </IconButton>
                       </ListItemButton>
                     </ListItem>
 
-                    {/* expanded */}
-                    <Collapse in={isOpen} timeout="auto" unmountOnExit={false}>
+                    {/* ✅ Collapse廃止：条件描画 */}
+                    {!uiFreezing && isOpen && (
                       <Box
                         sx={{
                           px: 2,
-                          pb: 1.6,
-                          pt: 0.4,
-                          mb: 1.1,
+                          pb: 1.5,
+                          pt: 0.6,
+                          mb: 1.0,
                           borderRadius: 2,
                           bgcolor: "rgba(0,0,0,0.02)",
                           border: "1px solid rgba(0,0,0,0.06)",
                         }}
                       >
-                        {/* sources */}
-                        <Stack spacing={0.8} sx={{ mb: 1.4 }}>
+                        <Stack spacing={0.8} sx={{ mb: 1.2 }}>
                           <Stack
                             direction="row"
                             spacing={0.8}
@@ -791,7 +825,7 @@ export default function ShoppingPage() {
                           >
                             <InfoOutlinedIcon fontSize="small" />
                             <Typography fontWeight={950}>
-                              使う予定の献立（由来）
+                              由来（数量テキスト）
                             </Typography>
                             <Chip
                               size="small"
@@ -823,14 +857,12 @@ export default function ShoppingPage() {
                             </Box>
                           ) : (
                             <Typography variant="body2" sx={{ opacity: 0.75 }}>
-                              由来情報がありません（手動追加 or
-                              材料テキストのみの可能性）
+                              由来情報がありません（手動追加など）
                             </Typography>
                           )}
                         </Stack>
 
-                        {/* memo */}
-                        <Stack spacing={0.8} sx={{ mb: 0.6 }}>
+                        <Stack spacing={0.8}>
                           <Stack
                             direction="row"
                             spacing={0.8}
@@ -851,7 +883,7 @@ export default function ShoppingPage() {
                             fullWidth
                             multiline
                             minRows={2}
-                            placeholder="例：特売で買う / なくてもOK / 代替：冷凍でも可"
+                            placeholder="例：特売で買う / 代替OK / なくてもOK"
                             value={memoValue}
                             onChange={(e) =>
                               onChangeMemo(it.id, e.target.value)
@@ -879,19 +911,15 @@ export default function ShoppingPage() {
                             </Button>
                           </Stack>
                         </Stack>
-
-                        <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                          ※
-                          在庫ステータスは「完全一致の簡易判定」です（揺れは後回しでOK）。
-                        </Typography>
                       </Box>
-                    </Collapse>
+                    )}
                   </Box>
                 );
               })}
             </List>
           )}
 
+          {/* 冷蔵庫に追加 */}
           <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
             <Button
               variant="contained"
@@ -922,133 +950,145 @@ export default function ShoppingPage() {
         </CardContent>
       </Card>
 
-      {/* history */}
-      <Box sx={{ mt: 2 }}>
-        <Accordion disableGutters sx={{ borderRadius: 3, overflow: "hidden" }}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Typography fontWeight={950}>
-                履歴（{planInfo.retentionDays}日以内）
-              </Typography>
-              <Chip size="small" label={`${historyItems.length}件`} />
-            </Stack>
-          </AccordionSummary>
+      {/* 手動で追加 */}
+      <Card sx={{ borderRadius: 3, mb: 2 }}>
+        <CardContent>
+          <Typography fontWeight={950} sx={{ mb: 1 }}>
+            手動で追加
+          </Typography>
 
-          <AccordionDetails>
-            {historyItems.length === 0 ? (
-              <Typography variant="body2" sx={{ opacity: 0.75 }}>
-                まだ履歴がありません。
-              </Typography>
-            ) : (
-              <List disablePadding>
-                {historyItems.map((it) => (
-                  <ListItem
-                    key={it.id}
-                    sx={{
-                      borderRadius: 2,
-                      mb: 0.5,
-                      bgcolor: "rgba(0,0,0,0.02)",
-                    }}
-                  >
-                    <ListItemIcon>
-                      <Checkbox checked disabled />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Typography sx={{ fontWeight: 900 }}>
-                          {it.name}
-                        </Typography>
-                      }
-                      secondary={`冷蔵庫に追加：${formatDateJP(
-                        it.syncedAt
-                      )} / ${it.categoryLabelSnapshot || ""}`}
-                    />
-                    <Chip size="small" label="追加済み" />
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </AccordionDetails>
-        </Accordion>
-      </Box>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            <TextField
+              fullWidth
+              label="買うもの（例：牛乳 / 洗剤 / ねぎ）"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addItem();
+              }}
+            />
+            <Button
+              variant="contained"
+              onClick={addItem}
+              disabled={!name.trim()}
+              sx={{
+                borderRadius: 999,
+                fontWeight: 900,
+                px: 3,
+                py: 1.1,
+                textTransform: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ＋ 追加
+            </Button>
+          </Stack>
 
-      {/* Generate Draft Dialog */}
+          <Typography
+            variant="caption"
+            sx={{ opacity: 0.7, display: "block", mt: 1 }}
+          >
+            ※手動追加は「カスタム・期限3日」で登録します（シンプル優先）
+          </Typography>
+        </CardContent>
+      </Card>
+
+      {/* 日用品・調味料メモ */}
+      <Card sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+            <NotesIcon fontSize="small" />
+            <Typography fontWeight={950}>日用品・調味料メモ</Typography>
+            <Chip
+              size="small"
+              label="端末をまたいで共有OK"
+              variant="outlined"
+            />
+            {notesBusy ? (
+              <Chip size="small" label="保存中..." variant="outlined" />
+            ) : null}
+          </Stack>
+
+          <TextField
+            fullWidth
+            multiline
+            minRows={4}
+            placeholder={"例：\n・洗剤\n・ラップ\n・醤油\n・ごま油"}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            sx={{ bgcolor: "#fff", borderRadius: 2 }}
+          />
+
+          <Typography
+            variant="caption"
+            sx={{ opacity: 0.7, display: "block", mt: 1 }}
+          >
+            ※このメモは Firestore（users/{`{userId}`}
+            .shoppingNote）に保存されます。
+          </Typography>
+        </CardContent>
+      </Card>
+
+      {/* 全件削除 confirm */}
       <Dialog
-        open={genOpen}
-        onClose={() => (!genBusy ? setGenOpen(false) : null)}
+        open={confirmOpen}
+        onClose={() => (!bulkBusy ? setConfirmOpen(false) : null)}
+        maxWidth="xs"
         fullWidth
-        maxWidth="sm"
+        transitionDuration={0}
       >
         <DialogTitle sx={{ fontWeight: 950 }}>
-          献立から買い物リストを生成
+          買い物リストを全件削除しますか？
         </DialogTitle>
         <DialogContent>
-          <Stack spacing={1.5} sx={{ mt: 1 }}>
-            <Typography variant="body2" sx={{ opacity: 0.8, lineHeight: 1.7 }}>
-              明日から <b>{genDays}日分</b>{" "}
-              の献立から材料を集めてドラフトを作ります。
-              在庫が「ある（HAVE）」のものは初期で「今回は買わない」になります。
-            </Typography>
-
-            <Box>
-              <Typography fontWeight={900} sx={{ mb: 1 }}>
-                対象期間
-              </Typography>
-              <ToggleButtonGroup
-                exclusive
-                value={genDays}
-                onChange={(_, v) => v && setGenDays(v)}
-              >
-                <ToggleButton value={2} sx={{ fontWeight: 950 }}>
-                  2日
-                </ToggleButton>
-                <ToggleButton value={3} sx={{ fontWeight: 950 }}>
-                  3日
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
-
-            {genError && <Alert severity="error">{genError}</Alert>}
-          </Stack>
+          <Typography variant="body2" sx={{ opacity: 0.8, lineHeight: 1.7 }}>
+            この操作は取り消せません。
+            <br />
+            「確定後の買い物リスト（shoppingItems）」を全て削除します。
+          </Typography>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
+        <DialogActions>
           <Button
-            onClick={() => setGenOpen(false)}
-            disabled={genBusy}
+            onClick={() => setConfirmOpen(false)}
+            disabled={bulkBusy}
             sx={{ fontWeight: 900 }}
           >
             キャンセル
           </Button>
           <Button
-            onClick={onGenerateDraft}
+            color="error"
             variant="contained"
-            disabled={genBusy}
-            sx={{
-              borderRadius: 999,
-              fontWeight: 950,
-              px: 3,
-              textTransform: "none",
-            }}
+            onClick={onDeleteAll}
+            disabled={bulkBusy}
+            sx={{ fontWeight: 950 }}
           >
-            {genBusy ? "生成中..." : "ドラフトを作る"}
+            {bulkBusy ? "削除中..." : "全件削除"}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={2500}
-        onClose={() => setToast((p) => ({ ...p, open: false }))}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          onClose={() => setToast((p) => ({ ...p, open: false }))}
-          severity={toast.sev}
-          sx={{ width: "100%", fontWeight: 900 }}
+      {/* ✅ 自前Toast */}
+      {toast.open && (
+        <Box
+          sx={{
+            position: "fixed",
+            left: "50%",
+            bottom: 24,
+            transform: "translateX(-50%)",
+            width: "calc(100% - 32px)",
+            maxWidth: 520,
+            zIndex: 1400,
+          }}
         >
-          {toast.msg}
-        </Alert>
-      </Snackbar>
+          <Alert
+            severity={toast.sev}
+            onClose={() => setToast((p) => ({ ...p, open: false }))}
+            sx={{ fontWeight: 900, boxShadow: 6, borderRadius: 2 }}
+          >
+            {toast.msg}
+          </Alert>
+        </Box>
+      )}
     </Box>
   );
 }

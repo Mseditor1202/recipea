@@ -1,4 +1,5 @@
 // src/lib/shopping.js
+// ※ しょうぴーが貼ってくれた最新版をそのまま利用（UI側のremoveChild対策が主因なので）
 import {
   collection,
   doc,
@@ -8,6 +9,7 @@ import {
   where,
   addDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
   Timestamp,
   writeBatch,
@@ -15,12 +17,19 @@ import {
 import { db } from "@/lib/firebase";
 import { addFridgeLot, getFridgeLotsByUser } from "@/lib/fridge";
 
-// ---------- helpers ----------
+// =====================================================
+// helpers
+// =====================================================
 const tsToDate = (v) => {
   if (!v) return null;
   if (v instanceof Date) return v;
   if (v instanceof Timestamp) return v.toDate();
-  return new Date(v);
+  try {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
 };
 
 const addDays = (date, days) => {
@@ -39,21 +48,55 @@ const PLAN_RETENTION_DAYS = { FREE: 7, PRO: 90 };
 export async function getUserPlan(userId) {
   const ref = doc(db, "users", userId);
   const snap = await getDoc(ref);
-  if (!snap.exists())
+
+  if (!snap.exists()) {
     return { plan: "FREE", retentionDays: PLAN_RETENTION_DAYS.FREE };
-  const v = snap.data();
+  }
+
+  const v = snap.data() || {};
   const plan = v?.plan === "PRO" ? "PRO" : "FREE";
   return { plan, retentionDays: PLAN_RETENTION_DAYS[plan] };
 }
 
 // =====================================================
-// shoppingItems（skip=今回は買わない）
-// - sources: 展開用（rawTextで数量表現）
-// - memo: メモ
+// ✅ 日用品/調味料メモ（Firestore）
+// 保存先：users/{uid}.shoppingNote
 // =====================================================
+export async function getShoppingNotesByUser(userId) {
+  if (!userId) return "";
+  const ref = doc(db, "users", userId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return "";
+  const v = snap.data() || {};
+  return String(v.shoppingNote || "");
+}
 
+export async function setShoppingNotesByUser(userId, note) {
+  if (!userId) throw new Error("userId is required");
+  const ref = doc(db, "users", userId);
+
+  try {
+    await updateDoc(ref, {
+      shoppingNote: String(note || ""),
+      shoppingNoteUpdatedAt: serverTimestamp(),
+    });
+  } catch {
+    const { setDoc } = await import("firebase/firestore");
+    await setDoc(
+      ref,
+      {
+        shoppingNote: String(note || ""),
+        shoppingNoteUpdatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }
+}
+
+// =====================================================
+// shoppingItems（確定後の買い物リスト）
+// =====================================================
 export async function getShoppingItemsByUser(userId) {
-  // インデックス回避のため orderBy しない（フロントでソート）
   const q = query(
     collection(db, "shoppingItems"),
     where("userId", "==", userId)
@@ -61,44 +104,32 @@ export async function getShoppingItemsByUser(userId) {
   const snap = await getDocs(q);
 
   const items = snap.docs.map((d) => {
-    const v = d.data();
-
-    // ✅ 新フィールド skip を優先。無ければ互換で checked を使う
+    const v = d.data() || {};
     const skip = v.skip != null ? Boolean(v.skip) : Boolean(v.checked || false);
 
     return {
       id: d.id,
-      userId: String(v.userId),
-
+      userId: String(v.userId || ""),
       name: String(v.name || ""),
+      memo: String(v.memo || ""),
+      sources: Array.isArray(v.sources) ? v.sources : [],
       categoryId: String(v.categoryId || "custom"),
       categoryLabelSnapshot: String(v.categoryLabelSnapshot || ""),
       customExpireDays:
         v.customExpireDays != null ? Number(v.customExpireDays) : null,
-
-      // ✅ 仕様：skip = 今回は買わない
       skip,
-
-      // status: TODO | SKIP | SYNCED（古いデータはTODO扱い）
+      purchased: Boolean(v.purchased || false),
+      purchasedAt: tsToDate(v.purchasedAt),
       status: String(v.status || (skip ? "SKIP" : "TODO")),
-
-      // 時刻
       skippedAt: tsToDate(v.skippedAt),
       syncedAt: tsToDate(v.syncedAt),
       purgeAt: tsToDate(v.purgeAt),
-
       syncedToFridge: Boolean(v.syncedToFridge || false),
-
       createdAt: tsToDate(v.createdAt),
       updatedAt: tsToDate(v.updatedAt),
-
-      // ✅ 追加：展開（数量rawText）とメモ
-      sources: Array.isArray(v.sources) ? v.sources : [],
-      memo: String(v.memo || ""),
     };
   });
 
-  // 新しい順（createdAtが無い古いデータは最後）
   items.sort((a, b) => {
     const at = a.createdAt ? a.createdAt.getTime() : 0;
     const bt = b.createdAt ? b.createdAt.getTime() : 0;
@@ -114,46 +145,50 @@ export async function addShoppingItem({
   categoryId,
   categoryLabelSnapshot,
   customExpireDays,
+  memo = "",
+  sources = [],
 }) {
   const ref = await addDoc(collection(db, "shoppingItems"), {
     userId,
     name: String(name || ""),
+    memo: String(memo || ""),
+    sources: Array.isArray(sources) ? sources : [],
     categoryId: String(categoryId || "custom"),
-    categoryLabelSnapshot: String(categoryLabelSnapshot || ""),
+    categoryLabelSnapshot: String(categoryLabelSnapshot || "カスタム"),
     customExpireDays:
       customExpireDays != null ? Number(customExpireDays) : null,
-
-    // ✅ 新仕様
     skip: false,
+    purchased: false,
+    purchasedAt: null,
     status: "TODO",
     syncedToFridge: false,
-
-    // ✅ 追加：手動追加は sources 空、memo 空
-    sources: [],
-    memo: "",
-
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
   return ref.id;
 }
 
-// ✅ 「今回は買わない」を切り替える
+export async function setShoppingItemPurchased(itemId, purchased) {
+  const ref = doc(db, "shoppingItems", itemId);
+  await updateDoc(ref, {
+    purchased: Boolean(purchased),
+    purchasedAt: purchased ? serverTimestamp() : null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function setShoppingItemSkip(itemId, skip) {
   const ref = doc(db, "shoppingItems", itemId);
   await updateDoc(ref, {
     skip: Boolean(skip),
-
-    // 互換のため checked も同時更新（古いUI/データ対策）
     checked: Boolean(skip),
-
+    ...(skip ? { purchased: false, purchasedAt: null } : {}),
     status: skip ? "SKIP" : "TODO",
     skippedAt: skip ? serverTimestamp() : null,
     updatedAt: serverTimestamp(),
   });
 }
 
-// ✅ メモ保存（買い物リスト側）
 export async function setShoppingItemMemo(itemId, memo) {
   const ref = doc(db, "shoppingItems", itemId);
   await updateDoc(ref, {
@@ -162,12 +197,71 @@ export async function setShoppingItemMemo(itemId, memo) {
   });
 }
 
-// ✅ 冷蔵庫に反映：skip==false のみ反映する
+export async function deleteShoppingItem(itemId) {
+  const ref = doc(db, "shoppingItems", itemId);
+  await deleteDoc(ref);
+}
+
+export async function markAllPurchased({ userId }) {
+  if (!userId) throw new Error("userId is required");
+
+  const snap = await getDocs(
+    query(collection(db, "shoppingItems"), where("userId", "==", userId))
+  );
+
+  const targets = snap.docs.filter((d) => {
+    const v = d.data() || {};
+    const skip = v.skip != null ? Boolean(v.skip) : Boolean(v.checked || false);
+    const purchased = Boolean(v.purchased || false);
+    return !skip && !purchased;
+  });
+
+  if (targets.length === 0) return { updated: 0 };
+
+  let updated = 0;
+  for (let i = 0; i < targets.length; i += 450) {
+    const chunk = targets.slice(i, i + 450);
+    const batch = writeBatch(db);
+    chunk.forEach((d) => {
+      batch.update(d.ref, {
+        purchased: true,
+        purchasedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      updated += 1;
+    });
+    await batch.commit();
+  }
+
+  return { updated };
+}
+
+export async function deleteAllShoppingItems({ userId }) {
+  if (!userId) throw new Error("userId is required");
+
+  const snap = await getDocs(
+    query(collection(db, "shoppingItems"), where("userId", "==", userId))
+  );
+  if (snap.empty) return { deleted: 0 };
+
+  let deleted = 0;
+  for (let i = 0; i < snap.docs.length; i += 450) {
+    const chunk = snap.docs.slice(i, i + 450);
+    const batch = writeBatch(db);
+    chunk.forEach((d) => {
+      batch.delete(d.ref);
+      deleted += 1;
+    });
+    await batch.commit();
+  }
+
+  return { deleted };
+}
+
 export async function syncActiveItemsToFridge({ userId, items }) {
-  // items: 画面側で skip==false & syncedToFridge!=true のものだけ渡す想定
   const { retentionDays } = await getUserPlan(userId);
 
-  for (const it of items) {
+  for (const it of items || []) {
     await addFridgeLot({
       userId,
       foodName: it.name,
@@ -194,15 +288,13 @@ export async function syncActiveItemsToFridge({ userId, items }) {
 }
 
 // =====================================================
-// ここから：献立 → DRAFT 生成
+// ここから：献立 → DRAFT 生成（既存）
 // =====================================================
-
 const COLLECTION_WEEKLY_DAY = "weeklyDaySets";
 const COLLECTION_RECIPES = "recipes";
 const MEAL_ORDER = ["breakfast", "lunch", "dinner"];
 const SLOT_ORDER = ["staple", "main", "side", "soup"];
 
-// 料理の材料を「name + rawText」に落とす（揺れ吸収）
 function normalizeIngredientToRow(ing) {
   if (!ing) return null;
 
@@ -230,13 +322,14 @@ function buildFridgeNameIndex(fridgeLots) {
   const map = new Map();
   const rank = { NONE: 0, FEW: 1, HAVE: 2 };
 
-  for (const lot of fridgeLots) {
+  for (const lot of fridgeLots || []) {
     const name = String(lot.foodNameSnapshot || "").trim();
     if (!name) continue;
 
     const key = name.toLowerCase();
     const state = lot.state || "HAVE";
     const prev = map.get(key);
+
     if (!prev) map.set(key, state);
     else if ((rank[state] ?? 2) > (rank[prev] ?? 2)) map.set(key, state);
   }
@@ -249,29 +342,37 @@ function getFridgeStateForName(index, name) {
   return index.get(key) || "UNKNOWN";
 }
 
-// 古いDRAFTをARCHIVED（常に最新draftだけ）
 async function archiveOldDrafts(userId) {
   const q = query(
     collection(db, "shoppingDraftSessions"),
-    where("userId", "==", userId),
-    where("status", "==", "DRAFT")
+    where("userId", "==", userId)
   );
   const snap = await getDocs(q);
   if (snap.empty) return;
 
   const batch = writeBatch(db);
+  let updates = 0;
+
   snap.docs.forEach((d) => {
-    batch.update(d.ref, { status: "ARCHIVED", archivedAt: serverTimestamp() });
+    const v = d.data() || {};
+    if (v.status === "DRAFT") {
+      batch.update(d.ref, {
+        status: "ARCHIVED",
+        archivedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      updates += 1;
+    }
   });
-  await batch.commit();
+
+  if (updates > 0) await batch.commit();
 }
 
-// 献立からDRAFT生成（明日からrangeDaysぶん）
 export async function generateShoppingDraftFromPlans({
   userId,
   rangeDays = 2,
 }) {
-  const days = rangeDays === 3 ? 3 : 2;
+  const days = Number(rangeDays) === 3 ? 3 : 2;
 
   await archiveOldDrafts(userId);
 
@@ -292,6 +393,7 @@ export async function generateShoppingDraftFromPlans({
   daySnaps.forEach((snap, idx) => {
     const k = dayKeys[idx];
     if (!snap.exists()) return;
+
     const data = snap.data() || {};
     dayDocs[k] = data;
 
@@ -306,15 +408,18 @@ export async function generateShoppingDraftFromPlans({
 
   const allIds = Array.from(recipeIdSet);
   const recipesById = {};
+
   for (let i = 0; i < allIds.length; i += 10) {
     const chunk = allIds.slice(i, i + 10);
+    if (chunk.length === 0) continue;
+
     const q = query(
       collection(db, COLLECTION_RECIPES),
       where("__name__", "in", chunk)
     );
     const snap = await getDocs(q);
     snap.forEach((docSnap) => {
-      recipesById[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+      recipesById[docSnap.id] = { id: docSnap.id, ...(docSnap.data() || {}) };
     });
   }
 
@@ -336,10 +441,10 @@ export async function generateShoppingDraftFromPlans({
         if (!recipe) continue;
 
         const recipeName = String(recipe.recipeName || "（無題）");
-
         const ings = Array.isArray(recipe.ingredients)
           ? recipe.ingredients
           : [];
+
         for (const ing of ings) {
           const row = normalizeIngredientToRow(ing);
           if (!row) continue;
@@ -351,19 +456,16 @@ export async function generateShoppingDraftFromPlans({
           const prev = aggregated.get(mapKey);
 
           const sourceRow = {
-            recipeId,
-            recipeName,
-            rawText: row.rawText, // ✅ 数量テキストはここに残す（合計しない）
+            dayKey,
             mealKey,
             slotKey,
-            dayKey,
+            recipeId,
+            recipeName,
+            rawText: row.rawText,
           };
 
-          if (!prev) {
-            aggregated.set(mapKey, { name, sources: [sourceRow] });
-          } else {
-            prev.sources.push(sourceRow);
-          }
+          if (!prev) aggregated.set(mapKey, { name, sources: [sourceRow] });
+          else prev.sources.push(sourceRow);
         }
       }
     }
@@ -379,6 +481,10 @@ export async function generateShoppingDraftFromPlans({
     updatedAt: serverTimestamp(),
   });
 
+  if (aggregated.size === 0) {
+    return { sessionId: sessionRef.id };
+  }
+
   const itemsCol = collection(
     db,
     "shoppingDraftSessions",
@@ -390,13 +496,11 @@ export async function generateShoppingDraftFromPlans({
   aggregated.forEach((v) => {
     const fridgeState = getFridgeStateForName(fridgeIndex, v.name);
 
-    const docRef = doc(itemsCol);
-    batch.set(docRef, {
+    batch.set(doc(itemsCol), {
       name: v.name,
       sources: v.sources,
 
       fridgeState,
-      // ✅ DRAFTでは初期：HAVEは「今回は買わない」ON
       skip: fridgeState === "HAVE",
 
       categoryId: "custom",
@@ -414,14 +518,18 @@ export async function generateShoppingDraftFromPlans({
   return { sessionId: sessionRef.id };
 }
 
+// =====================================================
+// draft session / items
+// =====================================================
 export async function getDraftSession(sessionId) {
   const ref = doc(db, "shoppingDraftSessions", sessionId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
-  const v = snap.data();
+
+  const v = snap.data() || {};
   return {
     id: snap.id,
-    userId: String(v.userId),
+    userId: String(v.userId || ""),
     status: String(v.status || "DRAFT"),
     rangeDays: Number(v.rangeDays || 2),
     startDayKey: String(v.startDayKey || ""),
@@ -436,8 +544,9 @@ export async function getDraftItems(sessionId) {
   const snap = await getDocs(
     collection(db, "shoppingDraftSessions", sessionId, "items")
   );
+
   const items = snap.docs.map((d) => {
-    const v = d.data();
+    const v = d.data() || {};
     return {
       id: d.id,
       name: String(v.name || ""),
@@ -481,8 +590,6 @@ export async function setDraftItemMemo(sessionId, itemId, memo) {
   });
 }
 
-// ✅ DRAFTを確定：skip=false のものを shoppingItems に追加
-// ✅ 履歴（draftSessionId等）は持たない
 export async function applyDraftToShoppingItems({ userId, sessionId }) {
   const session = await getDraftSession(sessionId);
   if (!session) throw new Error("Draft session not found");
@@ -494,29 +601,29 @@ export async function applyDraftToShoppingItems({ userId, sessionId }) {
   const batch = writeBatch(db);
 
   targets.forEach((t) => {
-    const ref = doc(collection(db, "shoppingItems"));
-    batch.set(ref, {
+    batch.set(doc(collection(db, "shoppingItems")), {
       userId,
       name: t.name,
+      sources: Array.isArray(t.sources) ? t.sources : [],
+      memo: String(t.memo || ""),
+
       categoryId: t.categoryId || "custom",
       categoryLabelSnapshot: String(t.categoryLabelSnapshot || "カスタム"),
       customExpireDays:
         t.categoryId === "custom" ? Number(t.customExpireDays || 3) : null,
 
       skip: false,
+      purchased: false,
+      purchasedAt: null,
+
       status: "TODO",
       syncedToFridge: false,
-
-      // ✅ ここがポイント：買い物リスト側でも同じ仕様（数量rawText/sources, memo）
-      sources: t.sources || [],
-      memo: String(t.memo || ""),
 
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
   });
 
-  // session自体は「確認済み」印として残してOK（消したいなら後で掃除）
   batch.update(doc(db, "shoppingDraftSessions", sessionId), {
     status: "APPLIED",
     appliedAt: serverTimestamp(),

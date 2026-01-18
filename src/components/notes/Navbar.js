@@ -13,7 +13,7 @@ export default function Navbar() {
       {" | "}
       <Link href="/recipes">レシピ検索</Link>
       {" | "}
-      <Link href="/fridge">食材登録をする</Link>
+      <Link href="/fridge">冷蔵庫管理</Link>
       {" | "}
       <Link href="/shopping">買い物リスト</Link>
       {" | "}

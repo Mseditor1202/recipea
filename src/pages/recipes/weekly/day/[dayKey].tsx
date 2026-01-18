@@ -1,5 +1,10 @@
 // pages/recipes/weekly/day/[dayKey].jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useRouter } from "next/router";
 import {
   Box,
@@ -50,23 +55,23 @@ function emptyMeal() {
   return { staple: null, main: null, side: null, soup: null };
 }
 
-function ensureDayDoc(data) {
+function ensureDayDoc(data: unknown) {
+  const d = (data ?? {}) as any;
+
   return {
-    breakfast: data?.breakfast
-      ? { ...emptyMeal(), ...data.breakfast }
-      : emptyMeal(),
-    lunch: data?.lunch ? { ...emptyMeal(), ...data.lunch } : emptyMeal(),
-    dinner: data?.dinner ? { ...emptyMeal(), ...data.dinner } : emptyMeal(),
-    memo: data?.memo || "",
+    breakfast: d?.breakfast ? { ...emptyMeal(), ...d.breakfast } : emptyMeal(),
+    lunch: d?.lunch ? { ...emptyMeal(), ...d.lunch } : emptyMeal(),
+    dinner: d?.dinner ? { ...emptyMeal(), ...d.dinner } : emptyMeal(),
+    memo: d?.memo || "",
     templateIds: {
-      breakfast: data?.templateIds?.breakfast || "",
-      lunch: data?.templateIds?.lunch || "",
-      dinner: data?.templateIds?.dinner || "",
+      breakfast: d?.templateIds?.breakfast || "",
+      lunch: d?.templateIds?.lunch || "",
+      dinner: d?.templateIds?.dinner || "",
     },
   };
 }
 
-function normalizeCategory(cat) {
+function normalizeCategory(cat: unknown) {
   if (!cat) return "";
   const c = String(cat).toLowerCase();
 
@@ -83,15 +88,25 @@ function normalizeCategory(cat) {
   return c;
 }
 
-// dailySets の揺れ吸収（mainDish/sideDish vs main/side）
-function readDailySetSlot(ds, slotKey) {
-  if (!ds) return null;
-  if (slotKey === "staple") return ds.staple ?? null;
-  if (slotKey === "main") return ds.mainDish ?? ds.main ?? null;
-  if (slotKey === "side") return ds.sideDish ?? ds.side ?? null;
-  if (slotKey === "soup") return ds.soup ?? null;
+type SlotKey = "staple" | "main" | "side" | "soup";
+
+function readDailySetSlot(ds: unknown, slotKey: SlotKey): string | null {
+  const d = (ds ?? {}) as any;
+
+  if (slotKey === "staple") return d.staple ?? null;
+  if (slotKey === "main") return d.mainDish ?? d.main ?? null;
+  if (slotKey === "side") return d.sideDish ?? d.side ?? null;
+  if (slotKey === "soup") return d.soup ?? null;
   return null;
 }
+
+type MealKey = "breakfast" | "lunch" | "dinner";
+
+type PickerState = {
+  dayKey: string;
+  meal: MealKey;
+  slot: SlotKey;
+} | null;
 
 export default function WeeklyDayEditPage() {
   const router = useRouter();
@@ -105,19 +120,25 @@ export default function WeeklyDayEditPage() {
   const [dayDoc, setDayDoc] = useState(ensureDayDoc(null));
 
   // recipes
-  const [recipeList, setRecipeList] = useState([]);
-  const [recipeMap, setRecipeMap] = useState({});
+  type Recipe = {
+    id: string;
+    recipeName?: string;
+    imageUrl?: string;
+    category?: string | null;
+    cookingTime?: number | null;
+    calories?: number | null;
+  };
+
+  const [recipeList, setRecipeList] = useState<Recipe[]>([]);
+  const [recipeMap, setRecipeMap] = useState<Record<string, Recipe>>({});
 
   // dailySets templates
-  const [dailySets, setDailySets] = useState([]);
+  type DailySet = { id: string; name?: string | null };
+  const [dailySets, setDailySets] = useState<DailySet[]>([]);
 
   // Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [picker, setPicker] = useState({
-    dayKey: null,
-    meal: null,
-    slot: null,
-  });
+  const [picker, setPicker] = useState<PickerState>(null);
   const [pickerSearch, setPickerSearch] = useState("");
   const [useCategoryFilter, setUseCategoryFilter] = useState(true);
 
@@ -126,14 +147,26 @@ export default function WeeklyDayEditPage() {
     const fetchCommon = async () => {
       try {
         const rSnap = await getDocs(collection(db, "recipes"));
-        const list = rSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const map = {};
-        list.forEach((r) => (map[r.id] = r));
+
+        const list = rSnap.docs.map((d) => {
+          const data = d.data() as any;
+          return { id: d.id, ...data };
+        });
+
+        const map: Record<string, any> = {};
+        list.forEach((r) => {
+          map[r.id] = r;
+        });
         setRecipeList(list);
         setRecipeMap(map);
 
         const dsSnap = await getDocs(collection(db, "dailySets"));
-        const ds = dsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        const ds = dsSnap.docs.map((d) => {
+          const data = d.data() as any;
+          return { id: d.id, ...data };
+        });
+
         setDailySets(ds);
       } catch (e) {
         console.error(e);
@@ -167,10 +200,12 @@ export default function WeeklyDayEditPage() {
     run();
   }, [router.isReady, dayKey]);
 
-  const getRecipeName = (id) => recipeMap?.[id]?.recipeName || "未設定";
-  const getRecipeImg = (id) => recipeMap?.[id]?.imageUrl || "";
+  const getRecipeName = (id?: string | null): string =>
+    (id ? recipeMap[id]?.recipeName : undefined) || "未設定";
+  const getRecipeImg = (id?: string | null): string =>
+    (id ? recipeMap[id]?.imageUrl : undefined) || "";
 
-  const openPicker = (meal, slot) => {
+  const openPicker = (meal: MealKey, slot: SlotKey) => {
     setPicker({ dayKey: String(dayKey), meal, slot });
     setPickerSearch("");
     setUseCategoryFilter(true);
@@ -180,11 +215,11 @@ export default function WeeklyDayEditPage() {
   const closePicker = () => setDrawerOpen(false);
 
   const pickerTitle = useMemo(() => {
-    if (!picker.meal || !picker.slot) return "レシピを選択";
+    if (!picker || !picker.meal || !picker.slot) return "レシピを選択";
     const m = MEALS.find((x) => x.key === picker.meal)?.label || "";
     const s = SLOTS.find((x) => x.key === picker.slot)?.label || "";
     return `${m} / ${s} を変更`;
-  }, [picker.meal, picker.slot]);
+  }, [picker]);
 
   const pickerFiltered = useMemo(() => {
     let list = recipeList;
@@ -193,19 +228,22 @@ export default function WeeklyDayEditPage() {
     if (q)
       list = list.filter((r) => (r.recipeName || "").toLowerCase().includes(q));
 
-    if (useCategoryFilter && picker.slot) {
+    if (useCategoryFilter && picker?.slot) {
+      const slot = picker.slot;
+
       const byCat = list.filter((r) => {
         const cat = normalizeCategory(r.category);
-        return !r.category || cat === picker.slot;
+        return !r.category || cat === slot;
       });
+
       if (byCat.length === 0) return list;
       return byCat;
     }
 
     return list;
-  }, [recipeList, pickerSearch, picker.slot, useCategoryFilter]);
+  }, [recipeList, pickerSearch, picker, useCategoryFilter]);
 
-  const handlePickRecipe = async (recipeId) => {
+  const handlePickRecipe = async (recipeId: string) => {
     if (!picker?.dayKey || !picker?.meal || !picker?.slot) return;
 
     setErrorMsg("");
@@ -260,11 +298,15 @@ export default function WeeklyDayEditPage() {
     }
   };
 
-  const handleApplyDailySetTemplate = async (mealKey, dailySetId) => {
+  const handleApplyDailySetTemplate = async (
+    mealKey: MealKey,
+    dailySetId: string
+  ) => {
     setErrorMsg("");
     setSaveMsg("");
 
-    // 解除
+    if (!dayKey) return;
+
     if (!dailySetId) {
       setDayDoc((prev) => ({
         ...prev,
@@ -412,9 +454,12 @@ export default function WeeklyDayEditPage() {
                         select
                         size="small"
                         label="献立テンプレ（献立レシピセット）"
-                        value={dayDoc?.templateIds?.[meal.key] ?? ""}
+                        value={dayDoc.templateIds?.[meal.key as MealKey] ?? ""}
                         onChange={(e) =>
-                          handleApplyDailySetTemplate(meal.key, e.target.value)
+                          handleApplyDailySetTemplate(
+                            meal.key as MealKey,
+                            String(e.target.value)
+                          )
                         }
                         sx={{ width: { xs: "100%", sm: 360 } }}
                         disabled={saving || dailySets.length === 0}
@@ -433,7 +478,9 @@ export default function WeeklyDayEditPage() {
                     {/* ✅ 4列固定に近い見せ方：lg以上で4列、mdで2列、smで2列、xsで1列 */}
                     <Grid container spacing={2}>
                       {SLOTS.map((slot) => {
-                        const recipeId = dayDoc?.[meal.key]?.[slot.key] || null;
+                        const mealKey = meal.key as MealKey;
+                        const slotKey = slot.key as SlotKey;
+                        const recipeId = dayDoc?.[mealKey]?.[slotKey] || null;
                         const name = recipeId
                           ? getRecipeName(recipeId)
                           : "未設定";
@@ -441,12 +488,8 @@ export default function WeeklyDayEditPage() {
 
                         return (
                           <Grid
-                            item
                             key={`${meal.key}-${slot.key}`}
-                            xs={12}
-                            sm={6}
-                            md={6}
-                            lg={3}
+                            size={{ xs: 12, sm: 6, md: 6, lg: 3 }}
                             sx={{ display: "flex" }}
                           >
                             <Card
@@ -485,6 +528,7 @@ export default function WeeklyDayEditPage() {
                                     imageUrl={img}
                                     title={name}
                                     height={170}
+                                    sx={{}}
                                   />
                                 </Box>
 
@@ -513,7 +557,12 @@ export default function WeeklyDayEditPage() {
                                     borderRadius: 999,
                                     textTransform: "none",
                                   }}
-                                  onClick={() => openPicker(meal.key, slot.key)}
+                                  onClick={() =>
+                                    openPicker(
+                                      meal.key as MealKey,
+                                      slot.key as SlotKey
+                                    )
+                                  }
                                   disabled={saving || recipeList.length === 0}
                                 >
                                   このレシピを変更
@@ -618,9 +667,9 @@ export default function WeeklyDayEditPage() {
           />
 
           <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: "wrap" }}>
-            <Chip size="small" label={`slot: ${picker.slot || "-"}`} />
+            <Chip size="small" label={`slot: ${picker?.slot || "-"}`} />
             <Chip size="small" label={`${pickerFiltered.length} 件`} />
-            {useCategoryFilter && picker.slot && (
+            {useCategoryFilter && picker && (
               <Chip
                 size="small"
                 label="0件なら自動で全件表示"
@@ -630,32 +679,36 @@ export default function WeeklyDayEditPage() {
           </Stack>
 
           <List sx={{ p: 0 }}>
-            {pickerFiltered.slice(0, 150).map((r) => (
-              <ListItemButton
-                key={r.id}
-                onClick={() => handlePickRecipe(r.id)}
-                sx={{
-                  borderRadius: 2,
-                  mb: 1,
-                  border: "1px solid #eee0cc",
-                  backgroundColor: "#fff",
-                  "&:hover": { backgroundColor: "#fff8e1" },
-                }}
-              >
-                <ListItemText
-                  primary={r.recipeName || "名称未設定"}
-                  secondary={[
-                    `category: ${r.category || "-"}`,
-                    typeof r.cookingTime === "number"
-                      ? `調理: ${r.cookingTime}分`
-                      : null,
-                    typeof r.calories === "number" ? `${r.calories}kcal` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" / ")}
-                />
-              </ListItemButton>
-            ))}
+            {pickerFiltered.slice(0, 150).map((r) => {
+              const secondaryText = [
+                `category: ${r.category || "-"}`,
+                typeof r.cookingTime === "number"
+                  ? `調理: ${r.cookingTime}分`
+                  : null,
+                typeof r.calories === "number" ? `${r.calories}kcal` : null,
+              ]
+                .filter((v): v is string => typeof v === "string")
+                .join(" / ");
+
+              return (
+                <ListItemButton
+                  key={r.id}
+                  onClick={() => handlePickRecipe(r.id)}
+                  sx={{
+                    borderRadius: 2,
+                    mb: 1,
+                    border: "1px solid #eee0cc",
+                    backgroundColor: "#fff",
+                    "&:hover": { backgroundColor: "#fff8e1" },
+                  }}
+                >
+                  <ListItemText
+                    primary={r.recipeName || "名称未設定"}
+                    secondary={secondaryText}
+                  />
+                </ListItemButton>
+              );
+            })}
           </List>
 
           {recipeList.length === 0 && (

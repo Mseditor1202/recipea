@@ -1,5 +1,8 @@
-// pages/recipes/index.jsx
+// src/pages/recipes/index.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import type { SyntheticEvent } from "react";
+import { useRouter } from "next/router";
+
 import {
   collection,
   getDocs,
@@ -9,12 +12,11 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { useRouter } from "next/router";
+
 import RecipeImage from "@/components/recipes/RecipeImage";
 
 import {
   Box,
-  Grid,
   Card,
   CardContent,
   CardActions,
@@ -28,23 +30,51 @@ import {
   Alert,
 } from "@mui/material";
 import { Save as SaveIcon } from "@mui/icons-material";
+import Grid from "@mui/material/Grid";
+
+import type { AlertColor } from "@mui/material/Alert";
+import type { SnackbarCloseReason } from "@mui/material/Snackbar";
+
+/* ===============================
+   型
+================================ */
+type Recipe = {
+  id: string;
+  recipeName?: string;
+  imageUrl?: string;
+  searchTags?: string[];
+  memo?: string;
+  authorId?: string;
+};
+
+type ToastState = {
+  open: boolean;
+  severity: AlertColor;
+  message: string;
+};
 
 /* ===============================
    正規化
 ================================ */
-const normalize = (v) => (v || "").toLowerCase();
+const normalize = (v?: string | null) => (v ?? "").toLowerCase();
 
 /* ===============================
    バリデーション & 表示用
 ================================ */
-const isValidDateKey = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+const isValidDateKey = (v?: string | null) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(v ?? "");
 
 // dailySet の slot は dailySets ドキュメントのキーに合わせる
-const DAILYSET_SLOTS = new Set(["staple", "mainDish", "sideDish", "soup"]);
+const DAILYSET_SLOTS = new Set([
+  "staple",
+  "mainDish",
+  "sideDish",
+  "soup",
+] as const);
 
-// weeklyDay の slot は weeklyDaySets 内のキー（あなたの設計：staple/main/side/soup）
-const WEEKLYDAY_SLOTS = new Set(["staple", "main", "side", "soup"]);
-const WEEKLYDAY_MEALS = new Set(["breakfast", "lunch", "dinner"]);
+// weeklyDay の slot は weeklyDaySets 内のキー（設計：staple/main/side/soup）
+const WEEKLYDAY_SLOTS = new Set(["staple", "main", "side", "soup"] as const);
+const WEEKLYDAY_MEALS = new Set(["breakfast", "lunch", "dinner"] as const);
 
 /* ===============================
    ページ本体
@@ -78,11 +108,11 @@ export default function RecipesPage() {
   const canSelectWeeklyDay =
     selectModeWeeklyDay &&
     isValidDateKey(dayKey) &&
-    WEEKLYDAY_MEALS.has(meal) &&
-    WEEKLYDAY_SLOTS.has(slot);
+    WEEKLYDAY_MEALS.has(meal as any) &&
+    WEEKLYDAY_SLOTS.has(slot as any);
 
   const canSelectDailySet =
-    selectModeDailySet && !!dailySetId && DAILYSET_SLOTS.has(slot);
+    selectModeDailySet && !!dailySetId && DAILYSET_SLOTS.has(slot as any);
 
   const canSelect = canSelectWeeklyDay || canSelectDailySet;
 
@@ -115,32 +145,35 @@ export default function RecipesPage() {
   /* ===============================
      state
   ============================== */
-  const [recipes, setRecipes] = useState([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [searchText, setSearchText] = useState("");
-  const [activeTags, setActiveTags] = useState([]);
+  const [activeTags, setActiveTags] = useState<string[]>([]);
 
   // ✅ memo編集用（dailysetと同じ思想）
-  const [memoDrafts, setMemoDrafts] = useState({}); // { [recipeId]: string }
-  const [savingById, setSavingById] = useState({}); // { [recipeId]: boolean }
+  const [memoDrafts, setMemoDrafts] = useState<Record<string, string>>({});
+  const [savingById, setSavingById] = useState<Record<string, boolean>>({});
   const [selectSaving, setSelectSaving] = useState(false);
 
   // ✅ Snackbar（Toast）
-  const [toast, setToast] = useState({
+  const [toast, setToast] = useState<ToastState>({
     open: false,
     severity: "success",
     message: "",
   });
 
-  const openToast = useCallback((severity, message) => {
+  const openToast = useCallback((severity: AlertColor, message: string) => {
     setToast({ open: true, severity, message });
   }, []);
 
-  const closeToast = useCallback((_, reason) => {
-    if (reason === "clickaway") return;
-    setToast((prev) => ({ ...prev, open: false }));
-  }, []);
+  const closeToast = useCallback(
+    (_event?: SyntheticEvent | Event, reason?: SnackbarCloseReason) => {
+      if (reason === "clickaway") return;
+      setToast((prev) => ({ ...prev, open: false }));
+    },
+    []
+  );
 
   /* ===============================
      取得
@@ -149,14 +182,18 @@ export default function RecipesPage() {
     const run = async () => {
       try {
         const snap = await getDocs(collection(db, "recipes"));
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const list: Recipe[] = snap.docs.map((d) => {
+          const data = d.data() as Omit<Recipe, "id">; // Firestoreの型はここで寄せる
+          return { id: d.id, ...data };
+        });
+
         setRecipes(list);
 
         // 初回：memoDraftを同期（既に編集してたら上書きしない）
         setMemoDrafts((prev) => {
           const next = { ...prev };
           list.forEach((r) => {
-            if (next[r.id] === undefined) next[r.id] = r.memo || "";
+            if (next[r.id] === undefined) next[r.id] = r.memo ?? "";
           });
           return next;
         });
@@ -167,6 +204,7 @@ export default function RecipesPage() {
         setLoading(false);
       }
     };
+
     run();
   }, [openToast]);
 
@@ -174,11 +212,12 @@ export default function RecipesPage() {
      全タグ一覧
   ============================== */
   const allTags = useMemo(() => {
-    const set = new Set();
-    recipes.forEach(
-      (r) =>
-        Array.isArray(r.searchTags) && r.searchTags.forEach((t) => set.add(t))
-    );
+    const set = new Set<string>();
+    recipes.forEach((r) => {
+      if (Array.isArray(r.searchTags)) {
+        r.searchTags.forEach((t) => set.add(t));
+      }
+    });
     return [...set];
   }, [recipes]);
 
@@ -204,7 +243,7 @@ export default function RecipesPage() {
       list = list.filter(
         (r) =>
           Array.isArray(r.searchTags) &&
-          activeTags.every((t) => r.searchTags.includes(t))
+          activeTags.every((t) => (r.searchTags ?? []).includes(t))
       );
     }
 
@@ -214,22 +253,22 @@ export default function RecipesPage() {
   /* ===============================
      タグ操作
   ============================== */
-  const toggleTag = (tag) => {
+  const toggleTag = useCallback((tag: string) => {
     setActiveTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
-  };
+  }, []);
 
   /* ===============================
      memo 編集
   ============================== */
-  const handleMemoChange = useCallback((recipeId, value) => {
+  const handleMemoChange = useCallback((recipeId: string, value: string) => {
     setMemoDrafts((prev) => ({ ...prev, [recipeId]: value }));
   }, []);
 
   const isDirty = useCallback(
-    (recipeDoc) => {
-      const original = recipeDoc.memo || "";
+    (recipeDoc: Recipe) => {
+      const original = recipeDoc.memo ?? "";
       const draft = memoDrafts[recipeDoc.id] ?? original;
       return draft !== original;
     },
@@ -237,9 +276,9 @@ export default function RecipesPage() {
   );
 
   const handleSaveMemo = useCallback(
-    async (recipeDoc) => {
+    async (recipeDoc: Recipe) => {
       const recipeId = recipeDoc.id;
-      const original = recipeDoc.memo || "";
+      const original = recipeDoc.memo ?? "";
       const draft = memoDrafts[recipeId] ?? original;
 
       if (draft === original) return;
@@ -290,7 +329,7 @@ export default function RecipesPage() {
      ✅ 選択モード：セット
   ============================== */
   const handleSelectRecipe = useCallback(
-    async (recipeId) => {
+    async (recipeId: string) => {
       if (!canSelect) {
         openToast(
           "error",
@@ -307,6 +346,7 @@ export default function RecipesPage() {
           await setDoc(
             doc(db, "weeklyDaySets", dayKey),
             {
+              // meal/slot はURL由来なので型は string のまま扱う（実体は上でバリデーション済み）
               [meal]: { [slot]: recipeId },
               updatedAt: serverTimestamp(),
             },
@@ -317,7 +357,7 @@ export default function RecipesPage() {
         // ✅ dailySets にセット
         if (canSelectDailySet) {
           await updateDoc(doc(db, "dailySets", dailySetId), {
-            [slot]: recipeId, // staple / mainDish / sideDish / soup
+            [slot]: recipeId,
             updatedAt: serverTimestamp(),
           });
         }
@@ -462,10 +502,10 @@ export default function RecipesPage() {
 
           const dirty = isDirty(recipe);
           const saving = !!savingById[recipe.id];
-          const draft = memoDrafts[recipe.id] ?? (recipe.memo || "");
+          const draft = memoDrafts[recipe.id] ?? recipe.memo ?? "";
 
           return (
-            <Grid item xs={12} sm={6} md={4} key={recipe.id}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={recipe.id}>
               <Card
                 sx={{
                   height: "100%",
@@ -477,13 +517,14 @@ export default function RecipesPage() {
                   imageUrl={recipe.imageUrl}
                   title={recipe.recipeName}
                   height={180}
+                  sx={{}}
                 />
 
                 <CardContent sx={{ flexGrow: 1 }}>
                   <Typography fontWeight={900}>{recipe.recipeName}</Typography>
 
                   <Stack direction="row" spacing={0.5} mt={1} flexWrap="wrap">
-                    {recipe.searchTags?.map((t) => (
+                    {(recipe.searchTags ?? []).map((t) => (
                       <Chip key={t} size="small" label={`#${t}`} />
                     ))}
                   </Stack>
@@ -502,7 +543,7 @@ export default function RecipesPage() {
                           fontWeight: 900,
                         }}
                         onClick={() => {
-                          const back = router.asPath; // ✅ ここが重要
+                          const back = router.asPath;
                           router.push(
                             `/recipes/${recipe.id}?back=${encodeURIComponent(
                               back
