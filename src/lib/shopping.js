@@ -1,1 +1,1 @@
-export * from "@/features/shopping/services/shoppingService";
+export * from "@/features/shopping";
