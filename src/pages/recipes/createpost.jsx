@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { createRecipe as createRecipeApi } from "@/features/recipes";
 import { useRouter } from "next/router";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import {
@@ -26,7 +26,7 @@ import {
   CloudUpload,
 } from "@mui/icons-material";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { storage } from "@/lib/firebase";
 
 export default function CreateRecipe() {
   const router = useRouter();
@@ -149,37 +149,35 @@ export default function CreateRecipe() {
 
       const imageUrl = imageFile ? await uploadImage() : "";
 
-      await addDoc(collection(db, "recipes"), {
+      await createRecipeApi({
         recipeName: recipeName.trim(),
 
-        // ✅ 具材・調味料
+        //  具材・調味料
         ingredients: validIngredients,
         seasonings: validSeasonings,
 
-        // ✅ 検索タグ
+        //  検索タグ
         searchTags,
 
-        // ✅ 画像・分類
+        //  画像・分類
         imageUrl,
         category, // staple/main/side/soup
 
-        // ✅ 数値
+        //  数値
         calories: calories ? Number(calories) : null,
         cookingTime: cookingTime ? Number(cookingTime) : null,
 
-        // ✅ 動画
+        //  動画
         videoUrl: videoUrl?.trim() ? videoUrl.trim() : null,
 
-        // ✅ 疲労モード用
+        //  疲労モード用
         easyFlags: {
           microwave: !!isMicrowave,
           lowDishwashing: !!isLowDishwashing,
         },
 
-        // ✅ author & timestamps
+        //  author
         authorId: user.uid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       });
 
       router.push("/recipes");
