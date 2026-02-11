@@ -11,7 +11,9 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>
       <Navbar />
-      <Component {...pageProps} />
+      <div style={{ paddingTop: 50 }}>
+        <Component {...pageProps} />
+      </div>
     </AuthProvider>
   );
 }
