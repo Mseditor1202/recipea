@@ -30,8 +30,7 @@ import { db, storage } from "@/lib/firebase";
 
 export default function CreateRecipe() {
   const router = useRouter();
-  const { user } = useRequireAuth();
-
+  const { user, loading } = useRequireAuth();
   const [recipeName, setRecipeName] = useState("");
 
   /* ========= 具材・調味料 ========= */
@@ -50,10 +49,9 @@ export default function CreateRecipe() {
   const [videoUrl, setVideoUrl] = useState("");
   const [category, setCategory] = useState("main");
 
-  /* ========= 疲労モード（任意だけど今後効く） ========= */
+  /* ========= 疲労モード ========= */
   const [isMicrowave, setIsMicrowave] = useState(false);
   const [isLowDishwashing, setIsLowDishwashing] = useState(false);
-  // 10分は cookingTime で判定できるのでフラグは必須じゃない
 
   /* ========= 画面メッセージ ========= */
   const [errorMsg, setErrorMsg] = useState("");
@@ -110,8 +108,11 @@ export default function CreateRecipe() {
 
   const ingredientCount = useMemo(
     () => ingredients.filter((i) => i.name.trim()).length,
-    [ingredients]
+    [ingredients],
   );
+
+  if (loading) return <div>Loading...</div>;
+  if (!user) return <div>ユーザー情報を取得中...</div>;
 
   /* ========= 保存 ========= */
   const createRecipe = async () => {
@@ -169,7 +170,7 @@ export default function CreateRecipe() {
         // ✅ 動画
         videoUrl: videoUrl?.trim() ? videoUrl.trim() : null,
 
-        // ✅ 疲労モード用（任意：無くても他ページは壊れない）
+        // ✅ 疲労モード用
         easyFlags: {
           microwave: !!isMicrowave,
           lowDishwashing: !!isLowDishwashing,
@@ -185,7 +186,7 @@ export default function CreateRecipe() {
     } catch (e) {
       console.error(e);
       setErrorMsg(
-        "登録に失敗しました（通信状況・権限・Storage設定を確認してね）"
+        "登録に失敗しました（通信状況・権限・Storage設定を確認してね）",
       );
     } finally {
       setSaving(false);
@@ -273,7 +274,7 @@ export default function CreateRecipe() {
                   ingredients,
                   idx,
                   "name",
-                  e.target.value
+                  e.target.value,
                 )
               }
               disabled={saving}
@@ -289,7 +290,7 @@ export default function CreateRecipe() {
                   ingredients,
                   idx,
                   "quantity",
-                  e.target.value
+                  e.target.value,
                 )
               }
               sx={{ width: 160 }}
@@ -339,7 +340,7 @@ export default function CreateRecipe() {
                   seasonings,
                   idx,
                   "name",
-                  e.target.value
+                  e.target.value,
                 )
               }
               disabled={saving}
@@ -355,7 +356,7 @@ export default function CreateRecipe() {
                   seasonings,
                   idx,
                   "quantity",
-                  e.target.value
+                  e.target.value,
                 )
               }
               sx={{ width: 160 }}
@@ -427,9 +428,9 @@ export default function CreateRecipe() {
         </RadioGroup>
       </FormControl>
 
-      {/* ✅ 疲労モード向け（任意） */}
+      {/* ✅ 疲労モード向け */}
       <Typography fontWeight={900} mb={1}>
-        ⚡ 疲労モード用（任意）
+        ⚡ 疲労モード用
       </Typography>
       <Stack direction="row" spacing={2} alignItems="center" mb={2}>
         <FormControlLabel
