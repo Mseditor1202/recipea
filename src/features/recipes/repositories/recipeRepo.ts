@@ -10,20 +10,24 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Recipe } from "../types";
+import type { DocumentData } from "firebase/firestore";
 
 const COLLECTION_RECIPES = "recipes";
 
-const snapToRecipe = (id: string, v: any): Recipe => {
-  return {
-    id,
-    recipeName: String(v?.recipeName ?? v?.name ?? ""),
-    imageUrl: v?.imageUrl ? String(v.imageUrl) : undefined,
-    userId: v?.userId ? String(v.userId) : undefined,
-    createdAt: v?.createdAt?.toDate ? v.createdAt.toDate() : undefined,
-    updatedAt: v?.updatedAt?.toDate ? v.updatedAt.toDate() : undefined,
-    ...v,
-  };
-};
+const snapToRecipe = (id: string, v: DocumentData): Recipe => ({
+  id,
+  userId: v?.userId ? String(v.userId) : v?.authorId ? String(v.authorId) : "",
+  title: String(v?.title ?? v?.recipeName ?? v?.name ?? ""),
+  imageUrl: v?.imageUrl ? String(v.imageUrl) : undefined,
+  tags: Array.isArray(v?.tags)
+    ? v.tags.map(String)
+    : Array.isArray(v?.searchTags)
+      ? v.searchTags.map(String)
+      : [],
+  memo: v?.memo ? String(v.memo) : undefined,
+  createdAt: v?.createdAt,
+  updatedAt: v?.updatedAt,
+});
 
 export async function listRecipes(): Promise<Recipe[]> {
   const snap = await getDocs(collection(db, COLLECTION_RECIPES));
@@ -38,7 +42,7 @@ export async function getRecipeById(id: string): Promise<Recipe | null> {
 }
 
 export async function createRecipe(
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
 ): Promise<string> {
   const ref = await addDoc(collection(db, COLLECTION_RECIPES), {
     ...payload,
@@ -50,7 +54,7 @@ export async function createRecipe(
 
 export async function updateRecipe(
   id: string,
-  patch: Record<string, any>,
+  patch: Record<string, unknown>,
 ): Promise<void> {
   const ref = doc(db, COLLECTION_RECIPES, id);
   await updateDoc(ref, {
