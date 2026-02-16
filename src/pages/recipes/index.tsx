@@ -3,17 +3,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useRouter } from "next/router";
 
-import {
-  collection,
-  getDocs,
-  doc,
-  updateDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { setDoc, serverTimestamp, doc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-
+import { updateRecipeMemo } from "@/features/recipes/repositories/recipeRepo";
+import { listRecipes } from "@/features/recipes";
+import { onAuthStateChanged } from "firebase/auth";
 import RecipeImage from "@/components/recipes/RecipeImage";
+import type { Recipe } from "@/features/recipes/types";
 
 import {
   Box,
@@ -38,14 +34,6 @@ import type { SnackbarCloseReason } from "@mui/material/Snackbar";
 /* ===============================
    型
 ================================ */
-type Recipe = {
-  id: string;
-  recipeName?: string;
-  imageUrl?: string;
-  searchTags?: string[];
-  memo?: string;
-  authorId?: string;
-};
 
 type ToastState = {
   open: boolean;
@@ -64,27 +52,37 @@ const normalize = (v?: string | null) => (v ?? "").toLowerCase();
 const isValidDateKey = (v?: string | null) =>
   /^\d{4}-\d{2}-\d{2}$/.test(v ?? "");
 
-// dailySet の slot は dailySets ドキュメントのキーに合わせる
-const DAILYSET_SLOTS = new Set([
-  "staple",
-  "mainDish",
-  "sideDish",
-  "soup",
-] as const);
+type WeeklyMeal = "breakfast" | "lunch" | "dinner";
+type WeeklySlot = "staple" | "main" | "side" | "soup";
+type DailySlot = "staple" | "mainDish" | "sideDish" | "soup";
 
-// weeklyDay の slot は weeklyDaySets 内のキー（設計：staple/main/side/soup）
-const WEEKLYDAY_SLOTS = new Set(["staple", "main", "side", "soup"] as const);
-const WEEKLYDAY_MEALS = new Set(["breakfast", "lunch", "dinner"] as const);
+const isWeeklyMeal = (v: string): v is WeeklyMeal =>
+  (["breakfast", "lunch", "dinner"] as const).includes(v as WeeklyMeal);
+
+const isWeeklySlot = (v: string): v is WeeklySlot =>
+  (["staple", "main", "side", "soup"] as const).includes(v as WeeklySlot);
+
+const isDailySlot = (v: string): v is DailySlot =>
+  (["staple", "mainDish", "sideDish", "soup"] as const).includes(
+    v as DailySlot,
+  );
 
 /* ===============================
    ページ本体
 ================================ */
 export default function RecipesPage() {
   const router = useRouter();
-  const currentUserId = auth.currentUser?.uid;
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setCurrentUserId(user?.uid ?? null);
+    });
+    return () => unsub();
+  }, []);
 
   /* ===============================
-     ✅ 選択モード判定
+      選択モード判定
   ============================== */
   const mode = typeof router.query?.mode === "string" ? router.query.mode : "";
 
@@ -108,11 +106,11 @@ export default function RecipesPage() {
   const canSelectWeeklyDay =
     selectModeWeeklyDay &&
     isValidDateKey(dayKey) &&
-    WEEKLYDAY_MEALS.has(meal as any) &&
-    WEEKLYDAY_SLOTS.has(slot as any);
+    isWeeklyMeal(meal) &&
+    isWeeklySlot(slot);
 
   const canSelectDailySet =
-    selectModeDailySet && !!dailySetId && DAILYSET_SLOTS.has(slot as any);
+    selectModeDailySet && !!dailySetId && isDailySlot(slot);
 
   const canSelect = canSelectWeeklyDay || canSelectDailySet;
 
@@ -151,12 +149,12 @@ export default function RecipesPage() {
   const [searchText, setSearchText] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
 
-  // ✅ memo編集用（dailysetと同じ思想）
+  //  memo編集用（dailysetと同じ思想）
   const [memoDrafts, setMemoDrafts] = useState<Record<string, string>>({});
   const [savingById, setSavingById] = useState<Record<string, boolean>>({});
   const [selectSaving, setSelectSaving] = useState(false);
 
-  // ✅ Snackbar（Toast）
+  //  Snackbar（Toast）
   const [toast, setToast] = useState<ToastState>({
     open: false,
     severity: "success",
@@ -172,24 +170,24 @@ export default function RecipesPage() {
       if (reason === "clickaway") return;
       setToast((prev) => ({ ...prev, open: false }));
     },
-    []
+    [],
   );
 
   /* ===============================
      取得
   ============================== */
   useEffect(() => {
+    // ログイン確定前は何もしない
+    if (currentUserId === null) return;
+
     const run = async () => {
       try {
-        const snap = await getDocs(collection(db, "recipes"));
-        const list: Recipe[] = snap.docs.map((d) => {
-          const data = d.data() as Omit<Recipe, "id">; // Firestoreの型はここで寄せる
-          return { id: d.id, ...data };
-        });
-
+        const list = await listRecipes();
+        console.log("currentUserId", currentUserId);
+        console.log("list[0]", list[0]);
         setRecipes(list);
 
-        // 初回：memoDraftを同期（既に編集してたら上書きしない）
+        // memoDrafts 初期化
         setMemoDrafts((prev) => {
           const next = { ...prev };
           list.forEach((r) => {
@@ -204,9 +202,8 @@ export default function RecipesPage() {
         setLoading(false);
       }
     };
-
     run();
-  }, [openToast]);
+  }, [currentUserId, openToast]);
 
   /* ===============================
      全タグ一覧
@@ -214,8 +211,8 @@ export default function RecipesPage() {
   const allTags = useMemo(() => {
     const set = new Set<string>();
     recipes.forEach((r) => {
-      if (Array.isArray(r.searchTags)) {
-        r.searchTags.forEach((t) => set.add(t));
+      if (Array.isArray(r.tags)) {
+        r.tags.forEach((t) => set.add(t));
       }
     });
     return [...set];
@@ -231,10 +228,9 @@ export default function RecipesPage() {
 
     if (q) {
       list = list.filter((r) => {
-        const nameHit = normalize(r.recipeName).includes(q);
+        const nameHit = normalize(r.title).includes(q);
         const tagHit =
-          Array.isArray(r.searchTags) &&
-          r.searchTags.some((t) => normalize(t).includes(q));
+          Array.isArray(r.tags) && r.tags.some((t) => normalize(t).includes(q));
         return nameHit || tagHit;
       });
     }
@@ -242,8 +238,8 @@ export default function RecipesPage() {
     if (activeTags.length > 0) {
       list = list.filter(
         (r) =>
-          Array.isArray(r.searchTags) &&
-          activeTags.every((t) => (r.searchTags ?? []).includes(t))
+          Array.isArray(r.tags) &&
+          activeTags.every((t) => (r.tags ?? []).includes(t)),
       );
     }
 
@@ -255,7 +251,7 @@ export default function RecipesPage() {
   ============================== */
   const toggleTag = useCallback((tag: string) => {
     setActiveTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     );
   }, []);
 
@@ -272,7 +268,7 @@ export default function RecipesPage() {
       const draft = memoDrafts[recipeDoc.id] ?? original;
       return draft !== original;
     },
-    [memoDrafts]
+    [memoDrafts],
   );
 
   const handleSaveMemo = useCallback(
@@ -286,32 +282,27 @@ export default function RecipesPage() {
       setSavingById((prev) => ({ ...prev, [recipeId]: true }));
 
       try {
-        const ref = doc(db, "recipes", recipeId);
-        await updateDoc(ref, {
-          memo: draft,
-          updatedAt: serverTimestamp(),
-        });
+        await updateRecipeMemo(recipeId, draft);
 
         setRecipes((prev) =>
-          prev.map((r) => (r.id === recipeId ? { ...r, memo: draft } : r))
+          prev.map((r) => (r.id === recipeId ? { ...r, memo: draft } : r)),
         );
-
         openToast("success", "保存しました");
       } catch (e) {
         console.error(e);
         openToast(
           "error",
-          "保存に失敗しました。通信状況を確認して再度お試しください。"
+          "保存に失敗しました。通信状況を確認して再度お試しください。",
         );
       } finally {
         setSavingById((prev) => ({ ...prev, [recipeId]: false }));
       }
     },
-    [memoDrafts, openToast]
+    [memoDrafts, openToast],
   );
 
   /* ===============================
-     ✅ 選択モード：戻る
+      選択モード：戻る
   ============================== */
   const handleBackFromSelectMode = useCallback(() => {
     if (from === "dailyset") {
@@ -326,14 +317,14 @@ export default function RecipesPage() {
   }, [from, router]);
 
   /* ===============================
-     ✅ 選択モード：セット
+      選択モード：セット
   ============================== */
   const handleSelectRecipe = useCallback(
     async (recipeId: string) => {
       if (!canSelect) {
         openToast(
           "error",
-          "セット先情報が不足しています。元の画面から入り直してください。"
+          "セット先情報が不足しています。元の画面から入り直してください。",
         );
         return;
       }
@@ -341,7 +332,7 @@ export default function RecipesPage() {
       setSelectSaving(true);
 
       try {
-        // ✅ weeklyDaySets にセット
+        //  weeklyDaySets にセット
         if (canSelectWeeklyDay) {
           await setDoc(
             doc(db, "weeklyDaySets", dayKey),
@@ -350,11 +341,11 @@ export default function RecipesPage() {
               [meal]: { [slot]: recipeId },
               updatedAt: serverTimestamp(),
             },
-            { merge: true }
+            { merge: true },
           );
         }
 
-        // ✅ dailySets にセット
+        //  dailySets にセット
         if (canSelectDailySet) {
           await updateDoc(doc(db, "dailySets", dailySetId), {
             [slot]: recipeId,
@@ -364,7 +355,7 @@ export default function RecipesPage() {
 
         openToast("success", "セットしました");
 
-        // ✅ 戻り先制御
+        //  戻り先制御
         if (from === "home") {
           router.push("/home");
           return;
@@ -379,7 +370,7 @@ export default function RecipesPage() {
         console.error(e);
         openToast(
           "error",
-          "セットに失敗しました。通信状況を確認して再度お試しください。"
+          "セットに失敗しました。通信状況を確認して再度お試しください。",
         );
       } finally {
         setSelectSaving(false);
@@ -396,7 +387,7 @@ export default function RecipesPage() {
       from,
       router,
       openToast,
-    ]
+    ],
   );
 
   /* ===============================
@@ -414,7 +405,7 @@ export default function RecipesPage() {
             レシピ一覧
           </Typography>
 
-          {/* ✅ ここがポイント：選択モードでも「戻る」を出す */}
+          {/*  ここがポイント：選択モードでも「戻る」を出す */}
           {selectMode ? (
             <Stack direction="row" spacing={1} alignItems="center">
               <Chip
@@ -437,7 +428,11 @@ export default function RecipesPage() {
           ) : (
             <Button
               variant="outlined"
-              sx={{ borderRadius: 999, textTransform: "none", fontWeight: 900 }}
+              sx={{
+                borderRadius: 999,
+                textTransform: "none",
+                fontWeight: 900,
+              }}
               onClick={() => router.push("/home")}
             >
               ホームに戻る
@@ -498,7 +493,11 @@ export default function RecipesPage() {
       {/* 一覧 */}
       <Grid container spacing={3}>
         {filtered.map((recipe) => {
-          const canEdit = recipe.authorId === currentUserId;
+          const ownerId = recipe.userId;
+          if (recipe.id === filtered[0]?.id) {
+            console.log("debug recipe", { ownerId, currentUserId, recipe });
+          }
+          const canEdit = !!ownerId && ownerId === currentUserId;
 
           const dirty = isDirty(recipe);
           const saving = !!savingById[recipe.id];
@@ -515,23 +514,23 @@ export default function RecipesPage() {
               >
                 <RecipeImage
                   imageUrl={recipe.imageUrl}
-                  title={recipe.recipeName}
+                  title={recipe.title}
                   height={180}
                   sx={{}}
                 />
 
                 <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography fontWeight={900}>{recipe.recipeName}</Typography>
+                  <Typography fontWeight={900}>{recipe.title}</Typography>
 
                   <Stack direction="row" spacing={0.5} mt={1} flexWrap="wrap">
-                    {(recipe.searchTags ?? []).map((t) => (
+                    {(recipe.tags ?? []).map((t) => (
                       <Chip key={t} size="small" label={`#${t}`} />
                     ))}
                   </Stack>
                 </CardContent>
 
                 <CardActions sx={{ px: 2, pb: 2, gap: 1, flexWrap: "wrap" }}>
-                  {/* ✅ 選択モード：詳細確認 + セット */}
+                  {/*  選択モード：詳細確認 + セット */}
                   {selectMode ? (
                     <>
                       <Button
@@ -546,8 +545,8 @@ export default function RecipesPage() {
                           const back = router.asPath;
                           router.push(
                             `/recipes/${recipe.id}?back=${encodeURIComponent(
-                              back
-                            )}`
+                              back,
+                            )}`,
                           );
                         }}
                       >
@@ -595,7 +594,7 @@ export default function RecipesPage() {
                   )}
                 </CardActions>
 
-                {/* ✅ Memo（通常時のみ表示） */}
+                {/*  Memo（通常時のみ表示） */}
                 {!selectMode && (
                   <Box
                     sx={{
@@ -679,7 +678,7 @@ export default function RecipesPage() {
         </Typography>
       )}
 
-      {/* ✅ Snackbar Toast */}
+      {/*  Snackbar Toast */}
       <Snackbar
         open={toast.open}
         autoHideDuration={2500}
