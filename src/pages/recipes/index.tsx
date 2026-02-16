@@ -3,12 +3,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useRouter } from "next/router";
 
-import { doc, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { setDoc, serverTimestamp, doc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-
+import { updateRecipeMemo } from "@/features/recipes/repositories/recipeRepo";
 import { listRecipes } from "@/features/recipes";
 import { onAuthStateChanged } from "firebase/auth";
 import RecipeImage from "@/components/recipes/RecipeImage";
+import type { Recipe } from "@/features/recipes/types";
 
 import {
   Box,
@@ -33,15 +34,6 @@ import type { SnackbarCloseReason } from "@mui/material/Snackbar";
 /* ===============================
    型
 ================================ */
-type Recipe = {
-  id: string;
-  recipeName?: string;
-  imageUrl?: string;
-  searchTags?: string[];
-  memo?: string;
-  userId?: string;
-  authorId?: string;
-};
 
 type ToastState = {
   open: boolean;
@@ -59,18 +51,6 @@ const normalize = (v?: string | null) => (v ?? "").toLowerCase();
 ================================ */
 const isValidDateKey = (v?: string | null) =>
   /^\d{4}-\d{2}-\d{2}$/.test(v ?? "");
-
-// dailySet の slot は dailySets ドキュメントのキーに合わせる
-const DAILYSET_SLOTS = new Set([
-  "staple",
-  "mainDish",
-  "sideDish",
-  "soup",
-] as const);
-
-// weeklyDay の slot は weeklyDaySets 内のキー（設計：staple/main/side/soup）
-const WEEKLYDAY_SLOTS = new Set(["staple", "main", "side", "soup"] as const);
-const WEEKLYDAY_MEALS = new Set(["breakfast", "lunch", "dinner"] as const);
 
 type WeeklyMeal = "breakfast" | "lunch" | "dinner";
 type WeeklySlot = "staple" | "main" | "side" | "soup";
@@ -231,8 +211,8 @@ export default function RecipesPage() {
   const allTags = useMemo(() => {
     const set = new Set<string>();
     recipes.forEach((r) => {
-      if (Array.isArray(r.searchTags)) {
-        r.searchTags.forEach((t) => set.add(t));
+      if (Array.isArray(r.tags)) {
+        r.tags.forEach((t) => set.add(t));
       }
     });
     return [...set];
@@ -248,10 +228,9 @@ export default function RecipesPage() {
 
     if (q) {
       list = list.filter((r) => {
-        const nameHit = normalize(r.recipeName).includes(q);
+        const nameHit = normalize(r.title).includes(q);
         const tagHit =
-          Array.isArray(r.searchTags) &&
-          r.searchTags.some((t) => normalize(t).includes(q));
+          Array.isArray(r.tags) && r.tags.some((t) => normalize(t).includes(q));
         return nameHit || tagHit;
       });
     }
@@ -259,8 +238,8 @@ export default function RecipesPage() {
     if (activeTags.length > 0) {
       list = list.filter(
         (r) =>
-          Array.isArray(r.searchTags) &&
-          activeTags.every((t) => (r.searchTags ?? []).includes(t)),
+          Array.isArray(r.tags) &&
+          activeTags.every((t) => (r.tags ?? []).includes(t)),
       );
     }
 
@@ -303,16 +282,11 @@ export default function RecipesPage() {
       setSavingById((prev) => ({ ...prev, [recipeId]: true }));
 
       try {
-        const ref = doc(db, "recipes", recipeId);
-        await updateDoc(ref, {
-          memo: draft,
-          updatedAt: serverTimestamp(),
-        });
+        await updateRecipeMemo(recipeId, draft);
 
         setRecipes((prev) =>
           prev.map((r) => (r.id === recipeId ? { ...r, memo: draft } : r)),
         );
-
         openToast("success", "保存しました");
       } catch (e) {
         console.error(e);
@@ -519,11 +493,11 @@ export default function RecipesPage() {
       {/* 一覧 */}
       <Grid container spacing={3}>
         {filtered.map((recipe) => {
-          const ownerId = recipe.userId ?? recipe.authorId;
+          const ownerId = recipe.userId;
           if (recipe.id === filtered[0]?.id) {
             console.log("debug recipe", { ownerId, currentUserId, recipe });
           }
-          const canEdit = ownerId === currentUserId;
+          const canEdit = !!ownerId && ownerId === currentUserId;
 
           const dirty = isDirty(recipe);
           const saving = !!savingById[recipe.id];
@@ -540,16 +514,16 @@ export default function RecipesPage() {
               >
                 <RecipeImage
                   imageUrl={recipe.imageUrl}
-                  title={recipe.recipeName}
+                  title={recipe.title}
                   height={180}
                   sx={{}}
                 />
 
                 <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography fontWeight={900}>{recipe.recipeName}</Typography>
+                  <Typography fontWeight={900}>{recipe.title}</Typography>
 
                   <Stack direction="row" spacing={0.5} mt={1} flexWrap="wrap">
-                    {(recipe.searchTags ?? []).map((t) => (
+                    {(recipe.tags ?? []).map((t) => (
                       <Chip key={t} size="small" label={`#${t}`} />
                     ))}
                   </Stack>
