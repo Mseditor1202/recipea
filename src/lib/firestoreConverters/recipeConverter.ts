@@ -4,46 +4,53 @@ import type {
   QueryDocumentSnapshot,
   SnapshotOptions,
   WithFieldValue,
+  Timestamp,
   DocumentData,
 } from "firebase/firestore";
 
 type RecipeFirestore = {
-  userId: string;
-  title: string;
+  userId?: string;
+  authorId?: string;
+  title?: string;
+  recipeName?: string;
+  name?: string;
   imageUrl?: string;
-  tags?: string[];
+  tags?: unknown;
+  searchTags?: unknown;
   memo?: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
 
-export const recipeConverter: FirestoreDataConverter<Recipe> = {
-  // addDoc時に serverTimestamp() が入るので WithFieldValue を許容しておく
-  toFirestore(recipe: WithFieldValue<Recipe>): DocumentData {
-    const { id, ...rest } = recipe;
+const toStringArray = (v: unknown): string[] => {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => String(x));
+};
 
-    // 🔁 互換のために旧フィールドも同時に書いておく（任意だけどおすすめ）
-    // title -> recipeName, tags -> searchTags
-    return {
-      ...rest,
-      recipeName: (rest as any).title,
-      searchTags: (rest as any).tags,
-    };
+export const recipeConverter: FirestoreDataConverter<Recipe> = {
+  // Firestoreに保存する際の変換処理
+  toFirestore(recipe: WithFieldValue<Recipe>): DocumentData {
+    const { id: _id, ...rest } = recipe as Recipe;
+    return rest;
   },
 
   fromFirestore(
-    snapshot: QueryDocumentSnapshot<DocumentData>,
+    snapshot: QueryDocumentSnapshot,
     options: SnapshotOptions,
   ): Recipe {
     const data = snapshot.data(options) as RecipeFirestore;
 
     return {
       id: snapshot.id,
-      userId: data.userId ?? "",
-      title: data.title ?? "",
-      imageUrl: data.imageUrl,
-      tags: data.tags ?? [],
-      memo: data.memo,
+      userId: data.userId
+        ? String(data.userId)
+        : data.authorId
+          ? String(data.authorId)
+          : "",
+      title: String(data.title ?? data.recipeName ?? data.name ?? ""),
+      imageUrl: data.imageUrl ? String(data.imageUrl) : undefined,
+      tags: toStringArray(data.tags ?? data.searchTags),
+      memo: data.memo ? String(data.memo) : undefined,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     };
