@@ -1,5 +1,14 @@
 // src/features/recipes/repositories/recipeRepo.ts
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 import type { Recipe } from "../types";
@@ -31,9 +40,8 @@ export async function getRecipeById(id: string): Promise<Recipe | null> {
 export async function createRecipe(
   payload: CreateRecipeInput,
 ): Promise<string> {
-  const colRef = collection(db, COLLECTION_RECIPES).withConverter(
-    recipeConverter,
-  );
+  const colRef = collection(db, COLLECTION_RECIPES);
+
   const ref = await addDoc(colRef, {
     ...payload,
     createdAt: serverTimestamp(),
