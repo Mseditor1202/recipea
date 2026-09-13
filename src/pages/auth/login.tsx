@@ -22,11 +22,12 @@ function waitForFirebaseUser() {
   });
 }
 
-function getSafeNext(next: string | string[] | undefind) {
+function getSafeNext(next: string | string[] | undefined) {
   const candidate = Array.isArray(next) ? next[0] : next;
 
   // 必ず同一オリジンの相対パスに限定（open redirect対策）
-  if (typeof candidate !== "string" || !candidate.startsWith("/")) return "/home";
+  if (typeof candidate !== "string" || !candidate.startsWith("/"))
+    return "/home";
 
   // auth配下へ戻すとループする可能性があるので弾く
   if (candidate.startsWith("/auth")) return "/home";

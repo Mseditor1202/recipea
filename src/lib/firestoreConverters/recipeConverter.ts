@@ -5,6 +5,7 @@ import type {
   SnapshotOptions,
   WithFieldValue,
   DocumentData,
+  Timestamp,
 } from "firebase/firestore";
 
 type RecipeFirestore = {
@@ -22,12 +23,12 @@ export const recipeConverter: FirestoreDataConverter<Recipe> = {
   toFirestore(recipe: WithFieldValue<Recipe>): DocumentData {
     const { id, ...rest } = recipe;
 
-    // 🔁 互換のために旧フィールドも同時に書いておく（任意だけどおすすめ）
+    //  互換のために旧フィールドも同時に書いておく（任意だけどおすすめ）
     // title -> recipeName, tags -> searchTags
     return {
       ...rest,
-      recipeName: (rest as any).title,
-      searchTags: (rest as any).tags,
+      recipeName: rest.title,
+      searchTags: rest.tags,
     };
   },
 
