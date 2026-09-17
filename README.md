@@ -1,40 +1,298 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# ラクするごはん
 
-## Getting Started
+## 概要
 
-First, run the development server:
+ラクするごはんは、共働き世帯や一人暮らしのユーザーの「自炊が続かない」という課題に着目し、継続して利用したくなる体験を目指して開発しているWebアプリです。
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+「毎日の献立決めが面倒」「買い忘れや食材ロスが発生する」「自炊が続かない」といった課題が、自炊継続の妨げになっていると考え開発しました。
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+## 使用技術
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+### フロントエンド
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+* Next.js（Pages Router）
+* React
+* TypeScript
+* MUI
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### バックエンド
 
-## Learn More
+* Firebase Authentication
+* Firestore
+* Firebase Storage
 
-To learn more about Next.js, take a look at the following resources:
+### インフラ
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+* Firebase Hosting
+* Cloudflare CDN（導入予定）
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 解決したい課題
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+私はこれまで編集者兼Webディレクターとして、ユーザー行動分析やCV改善に携わってきました。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+その経験を通じて、自分自身の生活課題やユーザー視点での課題を整理する中で、多くの人が「自炊を続けたいと思っているのに続かない」という悩みを抱えていることに気付きました。
+
+当初は以下が原因だと考えていました。
+
+* 料理が苦手だから続かない
+* レパートリーが少ないから続かない
+
+しかし実際にターゲット層へヒアリングを行うと、自炊に慣れている人ほど毎日の献立で悩んでいませんでした。
+
+なぜなら、毎回ゼロから考えるのではなく、
+
+> 「いつもの献立」
+
+という選択肢を持っていたからです。
+
+そこで私は、
+
+> 自炊が続かない原因は料理そのものではなく、毎日の献立を考える意思決定コストや、買い物・在庫管理の負担にあるのではないか
+
+という仮説を立てました。
+
+---
+
+## プロダクトコンセプト
+
+ラクするごはんは、この仮説から生まれたアプリです。
+
+料理のクオリティを上げることではなく、
+
+* 献立決定
+* 買い物
+* 冷蔵庫管理
+
+をつなげることで、日々の意思決定負荷を下げることを目的としています。
+
+また、アプリが全てを決めるのではなく、ユーザー自身が最終判断できる余白を残すことも重視しました。
+
+疲れている日は提案を利用し、余裕がある日は自由に選べる。
+
+そのようにユーザーが主導権を持ちながらも、必要な時だけアプリが支援するバランスを意識しています。
+
+ラクするごはんのコンセプトは、
+
+> ユーザーと一緒に育っていくアプリ
+
+です。
+
+単なるレシピ管理ツールではなく、日々の自炊を支える生活インフラのような存在を目指しています。
+
+---
+
+## 主要機能
+
+### ホーム
+
+* 今日の献立表示（朝・昼・夜）
+* ズボラセット反映
+* 月間献立カレンダー表示
+
+### 献立管理
+
+#### 月カレンダー
+
+* 朝昼夜の登録状況表示
+* 編集画面への遷移
+
+#### 1日献立編集
+
+* 朝昼夜の登録
+* レシピセット反映
+* 個別変更
+* 自由編集
+
+### ズボラセット
+
+* 1日分の献立テンプレート登録
+* ワンタップ反映
+* 個別編集可能
+
+#### 将来的な拡張
+
+* 時短優先
+* 洗い物優先
+* 傾向学習
+
+### レシピ管理
+
+* レシピ登録
+* 食材登録
+* 調理時間登録
+* 洗い物スコア登録
+
+### 買い物リスト
+
+* 献立から自動生成
+* メモ機能
+* 冷蔵庫連携
+
+### 冷蔵庫管理
+
+* 食材登録・削除
+* 数量管理
+* 賞味期限管理
+* 作成可能レシピ候補表示
+
+---
+
+## KGI・KPI
+
+### KGI
+
+* 4週後継続率
+
+### KPI
+
+* 献立登録率
+* ズボラセット利用率
+* 買い物リスト作成率
+* 週3回以上の利用率
+
+これらの指標を通じて、
+
+> 意思決定コストの削減が継続利用率向上につながる
+
+という仮説を検証していきます。
+
+---
+
+## 設計思想
+
+本アプリでは、
+
+> 「機能数」よりも「継続利用率」
+
+を重視しています。
+
+継続率向上が将来的な広告収益やサブスクリプション課金の成立につながると考え、UX設計を行いました。
+
+特に以下の3機能を重要視しています。
+
+* ワンタップで完了する献立登録
+* ズボラセット
+* 買い物リストと冷蔵庫連携
+
+---
+
+## アーキテクチャ
+
+### フロントエンド
+
+* Features構成
+* TypeScript
+* MUI
+
+### 設計
+
+* Repositoryパターン
+* Service分離
+* 責務分離
+
+保守性と開発速度の両立を目的として設計しています。
+
+---
+
+## 技術選定理由
+
+初期フェーズでは、
+
+* 仮説検証速度
+* 固定費の最小化
+* 保守性
+
+を重視しました。
+
+### Next.js
+
+開発速度と拡張性のバランスを重視
+
+### Firebase Authentication
+
+認証実装コスト削減とUX向上
+
+### Firestore
+
+柔軟なデータ設計と高速な仮説検証
+
+### MUI
+
+UI開発工数削減とUX改善への集中
+
+---
+
+## コスト戦略
+
+初期段階では、
+
+* Firebase Hosting
+* Firestore
+* Cloudflare CDN
+
+を活用し、低コスト運用を前提に設計しています。
+
+利用者増加に応じて段階的にスケールできる構成を採用しています。
+
+## スクリーンショット
+
+### ホーム画面
+
+（画像追加予定）
+
+### 献立管理画面
+
+（画像追加予定）
+
+### レシピ管理画面
+
+（画像追加予定）
+
+---
+
+## 今後実装予定
+
+* 実行ログ
+* バッチ処理
+* 権限管理
+* 課金機能
+* ページネーション
+* パフォーマンス改善
+
+---
+
+## 今後の運用計画
+
+### ユーザーテスト
+
+* 友人5名程度で実施予定
+
+### 集客
+
+* LP作成
+* Instagram広告
+* GA4分析
+
+### 改善
+
+* 継続率分析
+* 離脱分析
+* UX改善
+
+---
+
+## 目指していること
+
+実装そのものを目的とせず、
+
+* ユーザー獲得
+* 継続利用
+* 収益化
+
+までを見据えたプロダクト開発に取り組んでいます。
+
+ユーザー行動を分析しながら改善を繰り返し、継続的に価値を高められるサービスを目指しています。
