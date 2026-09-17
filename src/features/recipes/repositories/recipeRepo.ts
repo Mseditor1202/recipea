@@ -13,21 +13,21 @@ import { db } from "@/lib/firebase";
 
 import type { Recipe } from "../types";
 import { recipeConverter } from "@/lib/firestoreConverters/recipeConverter";
-import type { WithFieldValue } from "firebase/firestore";
 
 const COLLECTION_RECIPES = "recipes";
 
-/** 作成時に受け取る型（serverTimestamp() を許容するため WithFieldValue を使う） */
-type CreateRecipeInput = WithFieldValue<
-  Omit<Recipe, "id" | "createdAt" | "updatedAt">
->;
+type CreateRecipeInput = Omit<Recipe, "id" | "createdAt" | "updatedAt">;
 
 export async function listRecipes(): Promise<Recipe[]> {
   const colRef = collection(db, COLLECTION_RECIPES).withConverter(
     recipeConverter,
   );
+
   const snap = await getDocs(colRef);
-  return snap.docs.map((d) => d.data());
+
+  const recipes = snap.docs.map((d) => d.data());
+
+  return recipes;
 }
 
 export async function getRecipeById(id: string): Promise<Recipe | null> {
@@ -46,6 +46,10 @@ export async function createRecipe(
     ...payload,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+
+    // 旧フィールドとの互換がまだ必要なら残す
+    recipeName: payload.title,
+    searchTags: payload.tags ?? [],
   });
   return ref.id;
 }

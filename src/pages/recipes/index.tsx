@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useRouter } from "next/router";
 
-import { setDoc, serverTimestamp, doc } from "firebase/firestore";
+import { setDoc, updateDoc, serverTimestamp, doc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { updateRecipeMemo } from "@/features/recipes/repositories/recipeRepo";
 import { listRecipes } from "@/features/recipes";

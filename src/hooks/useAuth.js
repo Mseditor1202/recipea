@@ -4,7 +4,7 @@ import { auth } from "@/lib/firebase";
 
 const Ctx = createContext({
   isAuth: false,
-  setIsAuth: () => {},
+  setIsAuth: (_value) => {},
   user: null,
   loading: true,
 });
