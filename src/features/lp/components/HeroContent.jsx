@@ -10,7 +10,7 @@ export default function HeroContent() {
           fontSize: { xs: 36, md: 56 },
           fontWeight: 700,
           lineHeight: 1.3,
-          color: "#333",
+          color: "text.primary",
         }}
       >
         好きなレシピを、
@@ -23,7 +23,8 @@ export default function HeroContent() {
           mt: 3,
           fontSize: { xs: 15, md: 17 },
           lineHeight: 1.9,
-          color: "#555",
+          color: "text.primary",
+          opacity: 0.78,
         }}
       >
         お気に入りのレシピをまとめて、
@@ -36,10 +37,9 @@ export default function HeroContent() {
           component={NextLink}
           href="/auth/login"
           variant="contained"
+          color="primary"
           sx={{
-            bgcolor: "#FFB830",
-            color: "#333",
-            borderRadius: 3,
+            borderRadius: 1,
             px: 4,
             py: 1.5,
             fontWeight: 700,
@@ -53,7 +53,9 @@ export default function HeroContent() {
           href="/auth/login"
           variant="outlined"
           sx={{
-            borderRadius: 3,
+            borderColor: "primary.main",
+            color: "text.primary",
+            borderRadius: 1,
             px: 4,
             py: 1.5,
             fontWeight: 700,

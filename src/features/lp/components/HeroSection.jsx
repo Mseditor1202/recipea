@@ -1,7 +1,6 @@
 import HeroContent from "@/features/lp/components/HeroContent";
-import { Box, Button, Stack, Typography } from "@mui/material";
-import Image from "next/image";
-import NextLink from "next/link";
+import HeroVisual from "@/features/lp/components/HeroVisual";
+import { Box } from "@mui/material";
 
 export default function HeroSection() {
   return (
@@ -9,7 +8,7 @@ export default function HeroSection() {
       component="section"
       sx={{
         minHeight: "100vh",
-        bgcolor: "#FFFDFA",
+        bgcolor: "background.default",
         px: { xs: 2, md: 6 },
         py: { xs: 4, md: 8 },
       }}
@@ -27,31 +26,17 @@ export default function HeroSection() {
           gap: { xs: 5, md: 8 },
         }}
       >
-        {/* 左：コピー・CTA */}
-        <Box>
-          <HeroContent />
-        </Box>
+        <HeroContent />
 
-        {/* 右：Heroビジュアル */}
         <Box
           sx={{
-            position: "relative",
             minHeight: { xs: 480, md: 620 },
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
           }}
         >
-          <Image
-            src="/images/lp/hero/device/hero-phone.png"
-            alt="ラクするごはんのアプリ画面"
-            fill
-            sizes="(max-width: 900px) 80vw, 360px"
-            loading="eager"
-            style={{
-              objectFit: "contain",
-            }}
-          />
+          <HeroVisual />
         </Box>
       </Box>
     </Box>
