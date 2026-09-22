@@ -1,6 +1,6 @@
 import "@/styles/globals.css";
 import "@/styles/Navbar.css";
-
+import { useRouter } from "next/router";
 import type { AppProps } from "next/app";
 import { CssBaseline, ThemeProvider } from "@mui/material";
 import { Noto_Sans_JP } from "next/font/google";
@@ -17,17 +17,22 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export default function App({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+  const isLp = router.pathname === "/";
+
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <div className={notoSansJP.variable}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
 
-      <AuthProvider>
-        <Navbar />
+        <AuthProvider>
+          {!isLp && <Navbar />}
 
-        <div style={{ paddingTop: 50 }}>
-          <Component {...pageProps} />
-        </div>
-      </AuthProvider>
-    </ThemeProvider>
+          <div style={{ paddingTop: isLp ? 0 : 50 }}>
+            <Component {...pageProps} />
+          </div>
+        </AuthProvider>
+      </ThemeProvider>
+    </div>
   );
 }

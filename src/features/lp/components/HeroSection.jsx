@@ -1,5 +1,4 @@
 import HeroContent from "@/features/lp/components/HeroContent";
-import HeroVisual from "@/features/lp/components/HeroVisual";
 import { Box } from "@mui/material";
 
 export default function HeroSection() {
@@ -7,36 +6,72 @@ export default function HeroSection() {
     <Box
       component="section"
       sx={{
-        minHeight: "100vh",
+        position: "relative",
+
+        // Headerを除いたファーストビュー程度
+        minHeight: {
+          xs: "auto",
+          md: "79vh",
+        },
+
+        width: "100%",
+
+        backgroundImage: 'url("/images/lp/hero/hero-visual-final.png")',
+
+        backgroundRepeat: "no-repeat",
+
+        // PCでは画面全体を埋める
+        backgroundSize: {
+          xs: "contain",
+          md: "100% auto",
+        },
+
+        // 料理・スマホが右側にあるので右基準
+        backgroundPosition: {
+          xs: "center",
+          md: "center center",
+        },
+
         bgcolor: "background.default",
-        px: { xs: 2, md: 6 },
-        py: { xs: 4, md: 8 },
       }}
     >
       <Box
         sx={{
-          maxWidth: 1200,
-          mx: "auto",
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            md: "1fr 1fr",
+          width: "100%",
+          maxWidth: 1440,
+          minHeight: {
+            xs: "auto",
+            md: "79vh",
           },
+          mx: "auto",
+
+          display: "flex",
           alignItems: "center",
-          gap: { xs: 5, md: 8 },
+
+          px: {
+            xs: 2,
+            sm: 4,
+            md: 8,
+            lg: 10,
+          },
+
+          py: {
+            xs: 6,
+            md: 4,
+          },
         }}
       >
-        <HeroContent />
-
         <Box
           sx={{
-            minHeight: { xs: 480, md: 620 },
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
+            width: {
+              xs: "100%",
+              md: "42%",
+            },
+            maxWidth: 600,
+            zIndex: 2,
           }}
         >
-          <HeroVisual />
+          <HeroContent />
         </Box>
       </Box>
     </Box>

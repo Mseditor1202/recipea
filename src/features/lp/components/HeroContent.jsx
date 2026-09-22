@@ -40,8 +40,10 @@ export default function HeroContent() {
           color="primary"
           sx={{
             borderRadius: 1,
-            px: 4,
-            py: 1.5,
+            px: 5,
+            py: 1.8,
+            minWidth: 190,
+            fontSize: 16,
             fontWeight: 700,
           }}
         >
@@ -56,8 +58,10 @@ export default function HeroContent() {
             borderColor: "primary.main",
             color: "text.primary",
             borderRadius: 1,
-            px: 4,
-            py: 1.5,
+            px: 5,
+            py: 1.8,
+            minWidth: 150,
+            fontSize: 16,
             fontWeight: 700,
           }}
         >
