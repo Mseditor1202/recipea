@@ -20,15 +20,21 @@ export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const isLp = router.pathname === "/";
 
+  // 新しいAppLayoutへ移行済みのページ
+  const usesAppLayout = router.pathname === "/home";
+
+  // LPと新Layoutページでは旧Navbarを表示しない
+  const hideLegacyNavbar = isLp || usesAppLayout;
+
   return (
     <div className={notoSansJP.variable}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
 
         <AuthProvider>
-          {!isLp && <Navbar />}
+          {!hideLegacyNavbar && <Navbar />}
 
-          <div style={{ paddingTop: isLp ? 0 : 50 }}>
+          <div style={{ paddingTop: hideLegacyNavbar ? 0 : 50 }}>
             <Component {...pageProps} />
           </div>
         </AuthProvider>

@@ -1,4 +1,5 @@
 // pages/home/index.jsx
+import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import NextLink from "next/link";
 import {
@@ -105,7 +106,7 @@ function mealFilledMap(dayData) {
 function isDayPlanEmpty(dayData) {
   if (!dayData) return true;
   return !MEAL_ORDER.some((mealKey) =>
-    SLOT_ORDER.some((slotKey) => !!dayData?.[mealKey]?.[slotKey])
+    SLOT_ORDER.some((slotKey) => !!dayData?.[mealKey]?.[slotKey]),
   );
 }
 
@@ -490,8 +491,8 @@ function CalendarMonthGridA({
                 bgcolor: isSelected
                   ? "rgba(25,118,210,0.08)"
                   : isToday
-                  ? "rgba(255,193,7,0.10)"
-                  : "#fff",
+                    ? "rgba(255,193,7,0.10)"
+                    : "#fff",
                 borderRight: isLastCol ? "none" : "1px solid #e9e9e9",
                 borderBottom: isLastRow ? "none" : "1px solid #e9e9e9",
                 outline: isSelected
@@ -994,7 +995,7 @@ export default function HomeTodayMenu() {
 
       try {
         const snaps = await Promise.all(
-          rangeKeys.map((key) => getDoc(doc(db, COLLECTION_WEEKLY_DAY, key)))
+          rangeKeys.map((key) => getDoc(doc(db, COLLECTION_WEEKLY_DAY, key))),
         );
 
         const map = {};
@@ -1058,12 +1059,12 @@ export default function HomeTodayMenu() {
 
   const prevMonth = useCallback(() => {
     setMonthDate(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
     );
   }, []);
   const nextMonth = useCallback(() => {
     setMonthDate(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
     );
   }, []);
 
@@ -1082,7 +1083,7 @@ export default function HomeTodayMenu() {
       if (!nextDay) return;
 
       const needed = Array.from(collectRecipeIdsFromDay(nextDay)).filter(
-        (id) => !recipesById[id]
+        (id) => !recipesById[id],
       );
 
       if (needed.length === 0) return;
@@ -1102,7 +1103,7 @@ export default function HomeTodayMenu() {
 
       setRecipesById((prev) => ({ ...prev, ...fetched }));
     },
-    [recipesById]
+    [recipesById],
   );
 
   /** ===============================
@@ -1130,7 +1131,7 @@ export default function HomeTodayMenu() {
       if (!snap || snap.empty) {
         showToast(
           "献立レシピの登録がされていません。先に献立レシピの登録をおこなってください。",
-          "error"
+          "error",
         );
         return;
       }
@@ -1144,7 +1145,7 @@ export default function HomeTodayMenu() {
       if (!dailySetId) {
         showToast(
           "ズボラ用セットが見つかりませんでした。ズボラ用セットの登録をおこなってください。",
-          "error"
+          "error",
         );
         return;
       }
@@ -1170,7 +1171,7 @@ export default function HomeTodayMenu() {
           },
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
 
       await refreshDayAndRecipes(todayKey);
@@ -1226,7 +1227,7 @@ export default function HomeTodayMenu() {
             templateIds: { [mealKey]: "" },
             updatedAt: serverTimestamp(),
           },
-          { merge: true }
+          { merge: true },
         );
 
         await refreshDayAndRecipes(dayKey);
@@ -1238,7 +1239,7 @@ export default function HomeTodayMenu() {
         setActionBusy(false);
       }
     },
-    [refreshDayAndRecipes, showToast]
+    [refreshDayAndRecipes, showToast],
   );
 
   const selectedHasPlan = useMemo(() => {
@@ -1246,161 +1247,163 @@ export default function HomeTodayMenu() {
   }, [selectedDayData]);
 
   return (
-    <Box
-      sx={{
-        maxWidth: 1100,
-        mx: "auto",
-        mt: 4,
-        px: { xs: 2, md: 3 },
-        pb: 5,
-      }}
-    >
-      {/* Tabs（2つだけ） */}
+    <AppLayout title="ホーム" activeNav="home">
       <Box
         sx={{
-          border: "1px solid #e6e6e6",
-          borderRadius: 2,
-          overflow: "hidden",
-          bgcolor: "#fff",
+          maxWidth: 1100,
+          mx: "auto",
+          mt: 4,
+          px: { xs: 2, md: 3 },
+          pb: 5,
         }}
       >
-        <Tabs
-          value={tab}
-          onChange={handleTabChange}
-          variant="fullWidth"
+        {/* Tabs（2つだけ） */}
+        <Box
           sx={{
-            minHeight: 44,
-            "& .MuiTab-root": {
-              minHeight: 44,
-              fontWeight: 900,
-              textTransform: "none",
-            },
-            "& .MuiTabs-indicator": { height: 4, borderRadius: 999 },
+            border: "1px solid #e6e6e6",
+            borderRadius: 2,
+            overflow: "hidden",
+            bgcolor: "#fff",
           }}
         >
-          <Tab label="今日の献立" />
-          <Tab label="献立カレンダー" />
-        </Tabs>
-        <Divider />
-      </Box>
-
-      {error && (
-        <Typography variant="body2" color="error" sx={{ mt: 2 }}>
-          {error}
-        </Typography>
-      )}
-
-      {/* 今日 */}
-      {tab === 0 && (
-        <TodayDetail
-          todayKey={todayKey}
-          dayData={todayKey ? dayDocsByKey[todayKey] : null}
-          recipesMap={recipesById}
-          loading={loadingRange}
-          error={error}
-          onApplyZuboraDailySetToToday={applyZuboraDailySetToToday}
-          onChangeSlotRecipe={changeSlotRecipe}
-          onDeleteSlotRecipe={deleteSlotRecipe}
-          actionBusy={actionBusy}
-        />
-      )}
-
-      {/* 献立カレンダー */}
-      {tab === 1 && (
-        <Box sx={{ pt: 2 }}>
-          <Box
+          <Tabs
+            value={tab}
+            onChange={handleTabChange}
+            variant="fullWidth"
             sx={{
-              border: "1px solid #e6e6e6",
-              borderRadius: 2,
-              bgcolor: "#fff",
-              overflow: "hidden",
+              minHeight: 44,
+              "& .MuiTab-root": {
+                minHeight: 44,
+                fontWeight: 900,
+                textTransform: "none",
+              },
+              "& .MuiTabs-indicator": { height: 4, borderRadius: 999 },
             }}
           >
-            {/* 上：カレンダーゾーン */}
-            <Box sx={{ px: { xs: 1.5, md: 2 }, pt: 2, pb: 1.5 }}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ mb: 1 }}
-              >
-                <Button
-                  variant="outlined"
-                  onClick={prevMonth}
-                  sx={{
-                    borderRadius: 999,
-                    textTransform: "none",
-                    minWidth: 92,
-                    fontWeight: 900,
-                  }}
+            <Tab label="今日の献立" />
+            <Tab label="献立カレンダー" />
+          </Tabs>
+          <Divider />
+        </Box>
+
+        {error && (
+          <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+            {error}
+          </Typography>
+        )}
+
+        {/* 今日 */}
+        {tab === 0 && (
+          <TodayDetail
+            todayKey={todayKey}
+            dayData={todayKey ? dayDocsByKey[todayKey] : null}
+            recipesMap={recipesById}
+            loading={loadingRange}
+            error={error}
+            onApplyZuboraDailySetToToday={applyZuboraDailySetToToday}
+            onChangeSlotRecipe={changeSlotRecipe}
+            onDeleteSlotRecipe={deleteSlotRecipe}
+            actionBusy={actionBusy}
+          />
+        )}
+
+        {/* 献立カレンダー */}
+        {tab === 1 && (
+          <Box sx={{ pt: 2 }}>
+            <Box
+              sx={{
+                border: "1px solid #e6e6e6",
+                borderRadius: 2,
+                bgcolor: "#fff",
+                overflow: "hidden",
+              }}
+            >
+              {/* 上：カレンダーゾーン */}
+              <Box sx={{ px: { xs: 1.5, md: 2 }, pt: 2, pb: 1.5 }}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  sx={{ mb: 1 }}
                 >
-                  前の月
-                </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={prevMonth}
+                    sx={{
+                      borderRadius: 999,
+                      textTransform: "none",
+                      minWidth: 92,
+                      fontWeight: 900,
+                    }}
+                  >
+                    前の月
+                  </Button>
 
-                <Typography
-                  variant="h6"
-                  sx={{ fontWeight: 900, letterSpacing: "0.02em" }}
-                >
-                  {formatMonthTitle(monthDate)}
-                </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 900, letterSpacing: "0.02em" }}
+                  >
+                    {formatMonthTitle(monthDate)}
+                  </Typography>
 
-                <Button
-                  variant="outlined"
-                  onClick={nextMonth}
-                  sx={{
-                    borderRadius: 999,
-                    textTransform: "none",
-                    minWidth: 92,
-                    fontWeight: 900,
-                  }}
-                >
-                  次の月
-                </Button>
-              </Stack>
+                  <Button
+                    variant="outlined"
+                    onClick={nextMonth}
+                    sx={{
+                      borderRadius: 999,
+                      textTransform: "none",
+                      minWidth: 92,
+                      fontWeight: 900,
+                    }}
+                  >
+                    次の月
+                  </Button>
+                </Stack>
 
-              <CalendarMonthGridA
-                monthDate={monthDate}
-                dayDocsByKey={dayDocsByKey}
-                selectedDayKey={selectedDayKey}
-                onSelectDay={handleSelectDay}
-                todayKey={todayKey}
-                cellHeight={118}
-              />
-            </Box>
+                <CalendarMonthGridA
+                  monthDate={monthDate}
+                  dayDocsByKey={dayDocsByKey}
+                  selectedDayKey={selectedDayKey}
+                  onSelectDay={handleSelectDay}
+                  todayKey={todayKey}
+                  cellHeight={118}
+                />
+              </Box>
 
-            <Divider />
+              <Divider />
 
-            {/* 下：献立ゾーン（画像イメージのUI） */}
-            <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-              <MealSlidePanelV2
-                mealKey={slideMealKey}
-                onChangeMeal={setSlideMealKey}
-                selectedDayKey={selectedDayKey}
-                todayKey={todayKey}
-                selectedDayData={selectedDayData}
-                recipesById={recipesById}
-                loadingRange={loadingRange}
-                selectedHasPlan={selectedHasPlan}
-              />
+              {/* 下：献立ゾーン（画像イメージのUI） */}
+              <Box sx={{ p: { xs: 1.5, md: 2 } }}>
+                <MealSlidePanelV2
+                  mealKey={slideMealKey}
+                  onChangeMeal={setSlideMealKey}
+                  selectedDayKey={selectedDayKey}
+                  todayKey={todayKey}
+                  selectedDayData={selectedDayData}
+                  recipesById={recipesById}
+                  loadingRange={loadingRange}
+                  selectedHasPlan={selectedHasPlan}
+                />
+              </Box>
             </Box>
           </Box>
-        </Box>
-      )}
+        )}
 
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={2500}
-        onClose={() => setToast((p) => ({ ...p, open: false }))}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
+        <Snackbar
+          open={toast.open}
+          autoHideDuration={2500}
           onClose={() => setToast((p) => ({ ...p, open: false }))}
-          severity={toast.severity}
-          sx={{ width: "100%", fontWeight: 900 }}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
         >
-          {toast.message}
-        </Alert>
-      </Snackbar>
-    </Box>
+          <Alert
+            onClose={() => setToast((p) => ({ ...p, open: false }))}
+            severity={toast.severity}
+            sx={{ width: "100%", fontWeight: 900 }}
+          >
+            {toast.message}
+          </Alert>
+        </Snackbar>
+      </Box>
+    </AppLayout>
   );
 }
