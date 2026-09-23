@@ -4,6 +4,7 @@ import HeroSection from "@/features/lp/components/HeroSection";
 import ProblemSection from "@/features/lp/components/ProblemSection";
 import CycleSection from "@/features/lp/components/CycleSection";
 import FeaturesSection from "@/features/lp/components/FeaturesSection";
+import HowItWorksSection from "@/features/lp/components/HowItWorksSection";
 
 export default function IndexPage() {
   return (
@@ -13,6 +14,7 @@ export default function IndexPage() {
       <ProblemSection />
       <CycleSection />
       <FeaturesSection />
+      <HowItWorksSection />
     </>
   );
 }
