@@ -6,6 +6,7 @@ import CycleSection from "@/features/lp/components/CycleSection";
 import FeaturesSection from "@/features/lp/components/FeaturesSection";
 import HowItWorksSection from "@/features/lp/components/HowItWorksSection";
 import FinalCtaSection from "@/features/lp/components/FinalCtaSection";
+import Footer from "@/features/lp/components/Footer";
 
 export default function IndexPage() {
   return (
@@ -17,6 +18,7 @@ export default function IndexPage() {
       <FeaturesSection />
       <HowItWorksSection />
       <FinalCtaSection />
+      <Footer />
     </>
   );
 }
