@@ -1,18 +1,29 @@
 import {
   BottomNavigation as MuiBottomNavigation,
   BottomNavigationAction,
+  Box,
   Paper,
 } from "@mui/material";
-import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
-import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
-import RestaurantMenuRoundedIcon from "@mui/icons-material/RestaurantMenuRounded";
-import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
-import SentimentSatisfiedAltRoundedIcon from "@mui/icons-material/SentimentSatisfiedAltRounded";
 import { useRouter } from "next/router";
 
 type BottomNavigationProps = {
   activeNav?: "home" | "meal" | "create" | "recipes" | "mypage";
 };
+
+function NavIcon({ src, alt }: { src: string; alt: string }) {
+  return (
+    <Box
+      component="img"
+      src={src}
+      alt={alt}
+      sx={{
+        width: 28,
+        height: 28,
+        objectFit: "contain",
+      }}
+    />
+  );
+}
 
 export default function BottomNavigation({ activeNav }: BottomNavigationProps) {
   const router = useRouter();
@@ -64,31 +75,56 @@ export default function BottomNavigation({ activeNav }: BottomNavigationProps) {
         <BottomNavigationAction
           label="Home"
           value="home"
-          icon={<HomeRoundedIcon />}
+          icon={
+            <NavIcon
+              src="/icons/rakusuru/navigation/lg_nav_home.svg"
+              alt="Home"
+            />
+          }
         />
 
         <BottomNavigationAction
           label="献立"
           value="meal"
-          icon={<CalendarMonthRoundedIcon />}
+          icon={
+            <NavIcon
+              src="/icons/rakusuru/navigation/lg_nav_mealplan.svg"
+              alt="献立"
+            />
+          }
         />
 
         <BottomNavigationAction
           label="つくる"
           value="create"
-          icon={<RestaurantMenuRoundedIcon />}
+          icon={
+            <NavIcon
+              src="/icons/rakusuru/navigation/lg_nav_create.svg"
+              alt="つくる"
+            />
+          }
         />
 
         <BottomNavigationAction
           label="レシピ"
           value="recipes"
-          icon={<MenuBookRoundedIcon />}
+          icon={
+            <NavIcon
+              src="/icons/rakusuru/navigation/lg_nav_recipe.svg"
+              alt="レシピ"
+            />
+          }
         />
 
         <BottomNavigationAction
           label="マイページ"
           value="mypage"
-          icon={<SentimentSatisfiedAltRoundedIcon />}
+          icon={
+            <NavIcon
+              src="/icons/rakusuru/navigation/lg_nav_mypage.svg"
+              alt="マイページ"
+            />
+          }
         />
       </MuiBottomNavigation>
     </Paper>
