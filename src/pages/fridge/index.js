@@ -1,3 +1,5 @@
+// src/pages/fridge/index.js
+import AppLayout from "@/components/layout/AppLayout";
 import { useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -224,14 +226,14 @@ export default function FridgePage() {
     if (!lot.isNew) return;
     await markLotAsSeen(lot.id);
     setLots((prev) =>
-      prev.map((x) => (x.id === lot.id ? { ...x, isNew: false } : x))
+      prev.map((x) => (x.id === lot.id ? { ...x, isNew: false } : x)),
     );
   };
 
   const onChangeState = async (lot, nextState) => {
     await updateFridgeLotState(lot.id, nextState);
     setLots((prev) =>
-      prev.map((x) => (x.id === lot.id ? { ...x, state: nextState } : x))
+      prev.map((x) => (x.id === lot.id ? { ...x, state: nextState } : x)),
     );
   };
 
@@ -276,7 +278,7 @@ export default function FridgePage() {
 
     // UI即反映
     setLots((prev) =>
-      prev.map((x) => (x.id === memoTarget.id ? { ...x, memo: next } : x))
+      prev.map((x) => (x.id === memoTarget.id ? { ...x, memo: next } : x)),
     );
 
     setMemoSaving(false);
@@ -341,32 +343,190 @@ export default function FridgePage() {
   })();
 
   return (
-    <Box sx={{ maxWidth: 980, mx: "auto", px: 2, pt: 2, pb: 6 }}>
-      <Stack spacing={0.6} sx={{ mb: 2 }}>
-        <Typography variant="h5" fontWeight={950}>
-          冷蔵庫
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.75, lineHeight: 1.6 }}>
-          {configs?.coldStorageDisclaimer ||
-            "※ 冷蔵保存期限は USDA / FDA の食品安全ガイドラインを基に設計しています（卵は日本の食品衛生基準も考慮）。冷蔵庫は 4℃ 前後での保存を前提としています。"}
-        </Typography>
-      </Stack>
-
-      {loading ? (
-        <Stack spacing={1.2}>
-          <Skeleton variant="rounded" height={78} />
-          <Skeleton variant="rounded" height={78} />
-          <Skeleton variant="rounded" height={78} />
+    <AppLayout title="冷蔵庫">
+      <Box sx={{ maxWidth: 980, mx: "auto", px: 2, pt: 2, pb: 6 }}>
+        <Stack spacing={0.6} sx={{ mb: 2 }}>
+          <Typography variant="h5" fontWeight={950}>
+            冷蔵庫
+          </Typography>
+          <Typography variant="body2" sx={{ opacity: 0.75, lineHeight: 1.6 }}>
+            {configs?.coldStorageDisclaimer ||
+              "※ 冷蔵保存期限は USDA / FDA の食品安全ガイドラインを基に設計しています（卵は日本の食品衛生基準も考慮）。冷蔵庫は 4℃ 前後での保存を前提としています。"}
+          </Typography>
         </Stack>
-      ) : grouped.length === 0 ? (
-        <Card sx={{ borderRadius: 3 }}>
-          <CardContent>
-            <Typography fontWeight={900}>まだ食材がありません</Typography>
-            <Typography variant="body2" sx={{ opacity: 0.75, mt: 0.5 }}>
-              下の「＋ 食材を追加」からすぐ追加できます。
-            </Typography>
 
-            <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+        {loading ? (
+          <Stack spacing={1.2}>
+            <Skeleton variant="rounded" height={78} />
+            <Skeleton variant="rounded" height={78} />
+            <Skeleton variant="rounded" height={78} />
+          </Stack>
+        ) : grouped.length === 0 ? (
+          <Card sx={{ borderRadius: 3 }}>
+            <CardContent>
+              <Typography fontWeight={900}>まだ食材がありません</Typography>
+              <Typography variant="body2" sx={{ opacity: 0.75, mt: 0.5 }}>
+                下の「＋ 食材を追加」からすぐ追加できます。
+              </Typography>
+
+              <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+                <Button
+                  onClick={() => setOpenAdd(true)}
+                  variant="contained"
+                  sx={addButtonSx}
+                >
+                  ＋ 食材を追加
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        ) : (
+          <Box>
+            <Stack spacing={1.2}>
+              {grouped.map((g) => (
+                <Accordion
+                  key={g.name}
+                  disableGutters
+                  sx={{ borderRadius: 3, overflow: "hidden" }}
+                >
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                      sx={{ width: "100%" }}
+                    >
+                      <Typography fontWeight={950}>{g.name}</Typography>
+                      <Chip size="small" label={`${g.items.length}件`} />
+                    </Stack>
+                  </AccordionSummary>
+
+                  <AccordionDetails>
+                    <Stack spacing={1}>
+                      {g.items.map((lot) => {
+                        const remain = calcRemainDays(lot.expireAt);
+                        const level = getExpireLevel(remain);
+                        const basisLabel =
+                          lot.expireSource === "USER" ? "ユーザー" : "カテゴリ";
+                        const boughtAtText = formatDateJP(lot.boughtAt);
+                        const hasMemo = !!(lot.memo || "").trim();
+
+                        return (
+                          <Card
+                            key={lot.id}
+                            variant="outlined"
+                            sx={{
+                              borderRadius: 3,
+                              transition: "transform 120ms ease",
+                              "&:hover": { transform: "translateY(-1px)" },
+                            }}
+                            onMouseEnter={() => onSeenNew(lot)}
+                          >
+                            <CardContent sx={{ py: 1.5 }}>
+                              <Stack spacing={1}>
+                                <Stack
+                                  direction="row"
+                                  alignItems="center"
+                                  justifyContent="space-between"
+                                  spacing={1}
+                                >
+                                  <Stack spacing={0.7}>
+                                    <Stack
+                                      direction="row"
+                                      spacing={1}
+                                      alignItems="center"
+                                      flexWrap="wrap"
+                                    >
+                                      {lot.isNew && (
+                                        <Chip
+                                          size="small"
+                                          label="NEW"
+                                          color="primary"
+                                        />
+                                      )}
+                                      <Chip
+                                        size="small"
+                                        label={`${basisLabel}：残り${remain}日`}
+                                        color={levelToChipColor(level)}
+                                      />
+                                      {!!lot.categoryLabelSnapshot && (
+                                        <Chip
+                                          size="small"
+                                          variant="outlined"
+                                          label={lot.categoryLabelSnapshot}
+                                        />
+                                      )}
+                                    </Stack>
+
+                                    <Typography
+                                      variant="caption"
+                                      sx={{ opacity: 0.7 }}
+                                    >
+                                      追加日：{boughtAtText}
+                                    </Typography>
+                                  </Stack>
+
+                                  <Stack
+                                    direction="row"
+                                    alignItems="center"
+                                    spacing={1}
+                                  >
+                                    <Button
+                                      size="small"
+                                      variant={
+                                        hasMemo ? "contained" : "outlined"
+                                      }
+                                      onClick={() => openMemoEditor(lot)}
+                                      sx={{
+                                        borderRadius: 999,
+                                        fontWeight: 900,
+                                        textTransform: "none",
+                                        minWidth: 88,
+                                      }}
+                                    >
+                                      メモ
+                                    </Button>
+
+                                    <StockControls
+                                      state={lot.state}
+                                      onChange={(ns) => onChangeState(lot, ns)}
+                                      onRequestDelete={() => requestDelete(lot)}
+                                    />
+                                  </Stack>
+                                </Stack>
+
+                                {/* メモ表示（ある時だけ） */}
+                                {hasMemo && (
+                                  <Box
+                                    sx={{
+                                      px: 1.25,
+                                      py: 1,
+                                      borderRadius: 2,
+                                      bgcolor: "rgba(0,0,0,0.03)",
+                                    }}
+                                  >
+                                    <Typography
+                                      variant="body2"
+                                      sx={{ whiteSpace: "pre-wrap" }}
+                                    >
+                                      📝 {lot.memo}
+                                    </Typography>
+                                  </Box>
+                                )}
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Stack>
+
+            <Box
+              sx={{ display: "flex", justifyContent: "center", mt: 3, mb: 2 }}
+            >
               <Button
                 onClick={() => setOpenAdd(true)}
                 variant="contained"
@@ -375,333 +535,194 @@ export default function FridgePage() {
                 ＋ 食材を追加
               </Button>
             </Box>
-          </CardContent>
-        </Card>
-      ) : (
-        <Box>
-          <Stack spacing={1.2}>
-            {grouped.map((g) => (
-              <Accordion
-                key={g.name}
-                disableGutters
-                sx={{ borderRadius: 3, overflow: "hidden" }}
-              >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={1}
-                    sx={{ width: "100%" }}
-                  >
-                    <Typography fontWeight={950}>{g.name}</Typography>
-                    <Chip size="small" label={`${g.items.length}件`} />
-                  </Stack>
-                </AccordionSummary>
-
-                <AccordionDetails>
-                  <Stack spacing={1}>
-                    {g.items.map((lot) => {
-                      const remain = calcRemainDays(lot.expireAt);
-                      const level = getExpireLevel(remain);
-                      const basisLabel =
-                        lot.expireSource === "USER" ? "ユーザー" : "カテゴリ";
-                      const boughtAtText = formatDateJP(lot.boughtAt);
-                      const hasMemo = !!(lot.memo || "").trim();
-
-                      return (
-                        <Card
-                          key={lot.id}
-                          variant="outlined"
-                          sx={{
-                            borderRadius: 3,
-                            transition: "transform 120ms ease",
-                            "&:hover": { transform: "translateY(-1px)" },
-                          }}
-                          onMouseEnter={() => onSeenNew(lot)}
-                        >
-                          <CardContent sx={{ py: 1.5 }}>
-                            <Stack spacing={1}>
-                              <Stack
-                                direction="row"
-                                alignItems="center"
-                                justifyContent="space-between"
-                                spacing={1}
-                              >
-                                <Stack spacing={0.7}>
-                                  <Stack
-                                    direction="row"
-                                    spacing={1}
-                                    alignItems="center"
-                                    flexWrap="wrap"
-                                  >
-                                    {lot.isNew && (
-                                      <Chip
-                                        size="small"
-                                        label="NEW"
-                                        color="primary"
-                                      />
-                                    )}
-                                    <Chip
-                                      size="small"
-                                      label={`${basisLabel}：残り${remain}日`}
-                                      color={levelToChipColor(level)}
-                                    />
-                                    {!!lot.categoryLabelSnapshot && (
-                                      <Chip
-                                        size="small"
-                                        variant="outlined"
-                                        label={lot.categoryLabelSnapshot}
-                                      />
-                                    )}
-                                  </Stack>
-
-                                  <Typography
-                                    variant="caption"
-                                    sx={{ opacity: 0.7 }}
-                                  >
-                                    追加日：{boughtAtText}
-                                  </Typography>
-                                </Stack>
-
-                                <Stack
-                                  direction="row"
-                                  alignItems="center"
-                                  spacing={1}
-                                >
-                                  <Button
-                                    size="small"
-                                    variant={hasMemo ? "contained" : "outlined"}
-                                    onClick={() => openMemoEditor(lot)}
-                                    sx={{
-                                      borderRadius: 999,
-                                      fontWeight: 900,
-                                      textTransform: "none",
-                                      minWidth: 88,
-                                    }}
-                                  >
-                                    メモ
-                                  </Button>
-
-                                  <StockControls
-                                    state={lot.state}
-                                    onChange={(ns) => onChangeState(lot, ns)}
-                                    onRequestDelete={() => requestDelete(lot)}
-                                  />
-                                </Stack>
-                              </Stack>
-
-                              {/* メモ表示（ある時だけ） */}
-                              {hasMemo && (
-                                <Box
-                                  sx={{
-                                    px: 1.25,
-                                    py: 1,
-                                    borderRadius: 2,
-                                    bgcolor: "rgba(0,0,0,0.03)",
-                                  }}
-                                >
-                                  <Typography
-                                    variant="body2"
-                                    sx={{ whiteSpace: "pre-wrap" }}
-                                  >
-                                    📝 {lot.memo}
-                                  </Typography>
-                                </Box>
-                              )}
-                            </Stack>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </Stack>
-                </AccordionDetails>
-              </Accordion>
-            ))}
-          </Stack>
-
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 3, mb: 2 }}>
-            <Button
-              onClick={() => setOpenAdd(true)}
-              variant="contained"
-              sx={addButtonSx}
-            >
-              ＋ 食材を追加
-            </Button>
           </Box>
-        </Box>
-      )}
+        )}
 
-      {/* add dialog */}
-      <Dialog
-        open={openAdd}
-        onClose={() => setOpenAdd(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle sx={{ fontWeight: 950 }}>食材を追加</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="食材名（自由入力）"
-            value={foodName}
-            onChange={(e) => setFoodName(e.target.value)}
-            sx={{ mt: 1 }}
-          />
+        {/* add dialog */}
+        <Dialog
+          open={openAdd}
+          onClose={() => setOpenAdd(false)}
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle sx={{ fontWeight: 950 }}>食材を追加</DialogTitle>
+          <DialogContent>
+            <TextField
+              fullWidth
+              label="食材名（自由入力）"
+              value={foodName}
+              onChange={(e) => setFoodName(e.target.value)}
+              sx={{ mt: 1 }}
+            />
 
-          <Typography
-            variant="subtitle2"
-            sx={{ mt: 2, mb: 1, fontWeight: 900 }}
-          >
-            カテゴリ（期限テンプレ）
-          </Typography>
+            <Typography
+              variant="subtitle2"
+              sx={{ mt: 2, mb: 1, fontWeight: 900 }}
+            >
+              カテゴリ（期限テンプレ）
+            </Typography>
 
-          {rulesLoading ? (
-            <Typography sx={{ py: 2 }}>読み込み中...</Typography>
-          ) : (
-            <Stack direction="row" flexWrap="wrap" gap={1}>
-              {rules.map((r) => {
-                const selected = r.id === selectedCategoryId;
-                const label =
-                  r.id === "custom"
-                    ? `${r.label}`
-                    : `${r.label}（${r.defaultExpireDays}日）`;
-                return (
-                  <Chip
-                    key={r.id}
-                    label={label}
-                    clickable
-                    color={selected ? "primary" : "default"}
-                    variant={selected ? "filled" : "outlined"}
-                    onClick={() => setSelectedCategoryId(r.id)}
-                    sx={{ fontWeight: 900 }}
-                  />
-                );
-              })}
-            </Stack>
-          )}
+            {rulesLoading ? (
+              <Typography sx={{ py: 2 }}>読み込み中...</Typography>
+            ) : (
+              <Stack direction="row" flexWrap="wrap" gap={1}>
+                {rules.map((r) => {
+                  const selected = r.id === selectedCategoryId;
+                  const label =
+                    r.id === "custom"
+                      ? `${r.label}`
+                      : `${r.label}（${r.defaultExpireDays}日）`;
+                  return (
+                    <Chip
+                      key={r.id}
+                      label={label}
+                      clickable
+                      color={selected ? "primary" : "default"}
+                      variant={selected ? "filled" : "outlined"}
+                      onClick={() => setSelectedCategoryId(r.id)}
+                      sx={{ fontWeight: 900 }}
+                    />
+                  );
+                })}
+              </Stack>
+            )}
 
-          {isCustomSelected && (
-            <Box sx={{ mt: 2 }}>
-              <Divider sx={{ mb: 1.5 }} />
-              <TextField
-                fullWidth
-                type="number"
-                label="期限（残り日数）"
-                value={customExpireDays}
-                onChange={(e) => setCustomExpireDays(e.target.value)}
-                inputProps={{ min: 1, step: 1 }}
-                error={!customDaysValid}
-                helperText={
-                  !customDaysValid
-                    ? "1以上の数字を入れてね"
-                    : "例：3（3日後が期限になります）"
-                }
-              />
-            </Box>
-          )}
+            {isCustomSelected && (
+              <Box sx={{ mt: 2 }}>
+                <Divider sx={{ mb: 1.5 }} />
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="期限（残り日数）"
+                  value={customExpireDays}
+                  onChange={(e) => setCustomExpireDays(e.target.value)}
+                  inputProps={{ min: 1, step: 1 }}
+                  error={!customDaysValid}
+                  helperText={
+                    !customDaysValid
+                      ? "1以上の数字を入れてね"
+                      : "例：3（3日後が期限になります）"
+                  }
+                />
+              </Box>
+            )}
 
-          {!!selectedRule && (
-            <Box sx={{ mt: 2 }}>
-              {!isCustomSelected && <Divider sx={{ mb: 1.5 }} />}
-              <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                選択中：<b>{selectedRule.label}</b>
-                {!isCustomSelected && (
-                  <>
-                    {" "}
-                    / 目安：<b>{selectedRule.defaultExpireDays}日</b>
-                  </>
-                )}
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                ※ 冷蔵 4℃ 前後での保存を前提にした目安です
-              </Typography>
-            </Box>
-          )}
-        </DialogContent>
+            {!!selectedRule && (
+              <Box sx={{ mt: 2 }}>
+                {!isCustomSelected && <Divider sx={{ mb: 1.5 }} />}
+                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                  選択中：<b>{selectedRule.label}</b>
+                  {!isCustomSelected && (
+                    <>
+                      {" "}
+                      / 目安：<b>{selectedRule.defaultExpireDays}日</b>
+                    </>
+                  )}
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                  ※ 冷蔵 4℃ 前後での保存を前提にした目安です
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
 
-        <DialogActions>
-          <Button onClick={() => setOpenAdd(false)} sx={{ borderRadius: 999 }}>
-            閉じる
-          </Button>
-          <Button
-            onClick={onAdd}
-            variant="contained"
-            sx={{ borderRadius: 999, fontWeight: 900 }}
-            disabled={
-              !foodName.trim() || !selectedCategoryId || !customDaysValid
-            }
-          >
-            追加する
-          </Button>
-        </DialogActions>
-      </Dialog>
+          <DialogActions>
+            <Button
+              onClick={() => setOpenAdd(false)}
+              sx={{ borderRadius: 999 }}
+            >
+              閉じる
+            </Button>
+            <Button
+              onClick={onAdd}
+              variant="contained"
+              sx={{ borderRadius: 999, fontWeight: 900 }}
+              disabled={
+                !foodName.trim() || !selectedCategoryId || !customDaysValid
+              }
+            >
+              追加する
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-      {/* memo dialog */}
-      <Dialog open={openMemo} onClose={closeMemoEditor} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 950 }}>
-          メモ
-          <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.75 }}>
-            {memoTarget?.foodNameSnapshot || ""}
-          </Typography>
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="メモ（自由）"
-            value={memoText}
-            onChange={(e) => setMemoText(e.target.value)}
-            multiline
-            minRows={3}
-            placeholder="例）開封済み／明日使う／半分残ってる／子ども用 など"
-            sx={{ mt: 1 }}
-          />
-          <Typography
-            variant="caption"
-            sx={{ display: "block", mt: 1, opacity: 0.7 }}
-          >
-            ※ メモの削除は内容を空欄にして保存してください
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeMemoEditor} sx={{ borderRadius: 999 }}>
-            閉じる
-          </Button>
-          <Button
-            onClick={saveMemo}
-            variant="contained"
-            disabled={memoSaving}
-            sx={{ borderRadius: 999, fontWeight: 900 }}
-          >
-            {memoSaving ? "保存中..." : "保存"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        {/* memo dialog */}
+        <Dialog
+          open={openMemo}
+          onClose={closeMemoEditor}
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle sx={{ fontWeight: 950 }}>
+            メモ
+            <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.75 }}>
+              {memoTarget?.foodNameSnapshot || ""}
+            </Typography>
+          </DialogTitle>
+          <DialogContent>
+            <TextField
+              fullWidth
+              label="メモ（自由）"
+              value={memoText}
+              onChange={(e) => setMemoText(e.target.value)}
+              multiline
+              minRows={3}
+              placeholder="例）開封済み／明日使う／半分残ってる／子ども用 など"
+              sx={{ mt: 1 }}
+            />
+            <Typography
+              variant="caption"
+              sx={{ display: "block", mt: 1, opacity: 0.7 }}
+            >
+              ※ メモの削除は内容を空欄にして保存してください
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={closeMemoEditor} sx={{ borderRadius: 999 }}>
+              閉じる
+            </Button>
+            <Button
+              onClick={saveMemo}
+              variant="contained"
+              disabled={memoSaving}
+              sx={{ borderRadius: 999, fontWeight: 900 }}
+            >
+              {memoSaving ? "保存中..." : "保存"}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-      {/* delete confirm dialog */}
-      <Dialog open={openDelete} onClose={cancelDelete} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ fontWeight: 950 }}>本当に消しますか？</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ mt: 0.5 }}>
-            {deleteTarget?.foodNameSnapshot || "この食材"}{" "}
-            をリストから削除します。
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 1, opacity: 0.75 }}>
-            ※ 削除すると元に戻せません（同じ食材は再追加できます）
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={cancelDelete} sx={{ borderRadius: 999 }}>
-            いいえ
-          </Button>
-          <Button
-            onClick={confirmDelete}
-            variant="contained"
-            sx={{ borderRadius: 999, fontWeight: 900 }}
-          >
-            はい
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        {/* delete confirm dialog */}
+        <Dialog
+          open={openDelete}
+          onClose={cancelDelete}
+          fullWidth
+          maxWidth="xs"
+        >
+          <DialogTitle sx={{ fontWeight: 950 }}>本当に消しますか？</DialogTitle>
+          <DialogContent>
+            <Typography sx={{ mt: 0.5 }}>
+              {deleteTarget?.foodNameSnapshot || "この食材"}{" "}
+              をリストから削除します。
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1, opacity: 0.75 }}>
+              ※ 削除すると元に戻せません（同じ食材は再追加できます）
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={cancelDelete} sx={{ borderRadius: 999 }}>
+              いいえ
+            </Button>
+            <Button
+              onClick={confirmDelete}
+              variant="contained"
+              sx={{ borderRadius: 999, fontWeight: 900 }}
+            >
+              はい
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </AppLayout>
   );
 }
