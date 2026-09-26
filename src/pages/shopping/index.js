@@ -1,4 +1,5 @@
 // pages/shopping/index.js
+import AppLayout from "@/components/layout/AppLayout";
 import React, {
   useEffect,
   useMemo,
@@ -223,25 +224,25 @@ export default function ShoppingPage() {
 
   const activeItems = useMemo(
     () => items.filter((x) => x.status !== "SYNCED"),
-    [items]
+    [items],
   );
 
   const skipCount = useMemo(
     () => activeItems.filter((x) => x.skip).length,
-    [activeItems]
+    [activeItems],
   );
   const boughtCount = useMemo(
     () => activeItems.filter((x) => x.purchased).length,
-    [activeItems]
+    [activeItems],
   );
   const unboughtCount = useMemo(
     () => activeItems.filter((x) => !x.skip && !x.purchased).length,
-    [activeItems]
+    [activeItems],
   );
 
   const pendingSyncItems = useMemo(
     () => activeItems.filter((x) => !x.skip && !x.syncedToFridge),
-    [activeItems]
+    [activeItems],
   );
 
   const safeTooltipProps = {
@@ -283,8 +284,8 @@ export default function ShoppingPage() {
       prev.map((x) =>
         x.id === it.id
           ? { ...x, skip: next, purchased: next ? false : x.purchased }
-          : x
-      )
+          : x,
+      ),
     );
     setSkipSaving((p) => ({ ...p, [it.id]: true }));
 
@@ -296,7 +297,7 @@ export default function ShoppingPage() {
     } catch (e) {
       console.error(e);
       setItems((prev) =>
-        prev.map((x) => (x.id === it.id ? { ...x, skip: !next } : x))
+        prev.map((x) => (x.id === it.id ? { ...x, skip: !next } : x)),
       );
       showToast("更新に失敗しました", "error");
     } finally {
@@ -309,7 +310,7 @@ export default function ShoppingPage() {
     const next = !it.purchased;
 
     setItems((prev) =>
-      prev.map((x) => (x.id === it.id ? { ...x, purchased: next } : x))
+      prev.map((x) => (x.id === it.id ? { ...x, purchased: next } : x)),
     );
     setPurchasedSaving((p) => ({ ...p, [it.id]: true }));
 
@@ -318,7 +319,7 @@ export default function ShoppingPage() {
     } catch (e) {
       console.error(e);
       setItems((prev) =>
-        prev.map((x) => (x.id === it.id ? { ...x, purchased: !next } : x))
+        prev.map((x) => (x.id === it.id ? { ...x, purchased: !next } : x)),
       );
       showToast("更新に失敗しました", "error");
     } finally {
@@ -335,7 +336,7 @@ export default function ShoppingPage() {
     try {
       await setShoppingItemMemo(it.id, v);
       setItems((prev) =>
-        prev.map((x) => (x.id === it.id ? { ...x, memo: v } : x))
+        prev.map((x) => (x.id === it.id ? { ...x, memo: v } : x)),
       );
       showToast("メモを保存しました");
     } catch (e) {
@@ -409,7 +410,7 @@ export default function ShoppingPage() {
     } catch (e) {
       console.error(e);
       setGenError(
-        "献立から生成できませんでした。献立/レシピ/材料の設定を確認してね。"
+        "献立から生成できませんでした。献立/レシピ/材料の設定を確認してね。",
       );
       setUiFreezing(false);
     } finally {
@@ -463,632 +464,656 @@ export default function ShoppingPage() {
   }
 
   return (
-    <Box sx={pageWrapSx}>
-      {/* header */}
-      <Stack spacing={0.8} sx={{ mb: 2 }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          justifyContent="space-between"
-          alignItems={{ xs: "flex-start", sm: "center" }}
-        >
-          <Box>
-            <Typography variant="h5" fontWeight={950}>
-              買い物リスト
-            </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.75, lineHeight: 1.6 }}>
-              「買わない」は<b>冷蔵庫に追加しません</b>
-              。個別削除（ゴミ箱）もできます。
-            </Typography>
-          </Box>
-
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              onClick={() => setGenOpen(true)}
-              sx={{
-                borderRadius: 999,
-                fontWeight: 950,
-                px: 2.4,
-                py: 1.1,
-                textTransform: "none",
-              }}
-            >
-              献立から生成
-            </Button>
-            <Button
-              component={NextLink}
-              href="/recipes/weekly"
-              variant="outlined"
-              sx={{
-                borderRadius: 999,
-                fontWeight: 950,
-                px: 2.2,
-                py: 1.1,
-                textTransform: "none",
-              }}
-            >
-              献立を確認
-            </Button>
-          </Stack>
-        </Stack>
-      </Stack>
-
-      {/* 生成ダイアログ（Transitionなし） */}
-      <Dialog
-        open={genOpen}
-        onClose={() => (!genBusy ? setGenOpen(false) : null)}
-        maxWidth="xs"
-        fullWidth
-        transitionDuration={0}
-      >
-        <DialogTitle sx={{ fontWeight: 950 }}>献立から生成</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
-            明日から何日分の献立を対象にする？
-          </Typography>
-
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant={genDays === 2 ? "contained" : "outlined"}
-              onClick={() => setGenDays(2)}
-              sx={{ borderRadius: 999, fontWeight: 900, textTransform: "none" }}
-            >
-              2日分
-            </Button>
-            <Button
-              variant={genDays === 3 ? "contained" : "outlined"}
-              onClick={() => setGenDays(3)}
-              sx={{ borderRadius: 999, fontWeight: 900, textTransform: "none" }}
-            >
-              3日分
-            </Button>
-          </Stack>
-
-          {genError ? (
-            <Alert severity="error" sx={{ mt: 1.5 }}>
-              {genError}
-            </Alert>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setGenOpen(false)}
-            disabled={genBusy}
-            sx={{ fontWeight: 900 }}
-          >
-            キャンセル
-          </Button>
-          <Button
-            onClick={onGenerateDraft}
-            variant="contained"
-            disabled={genBusy}
-            sx={{ fontWeight: 950 }}
-          >
-            {genBusy ? "生成中..." : "生成する"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* list */}
-      <Card sx={{ borderRadius: 3, mb: 2 }}>
-        <CardContent>
+    <AppLayout title="買い物リスト">
+      <Box sx={pageWrapSx}>
+        {/* header */}
+        <Stack spacing={0.8} sx={{ mb: 2 }}>
           <Stack
             direction={{ xs: "column", sm: "row" }}
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            justifyContent="space-between"
-            sx={{ mb: 1 }}
             spacing={1}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", sm: "center" }}
           >
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <Typography fontWeight={950}>買うもの</Typography>
-              <Chip size="small" label={`買わない ${skipCount}`} />
-              <Chip size="small" label={`買った ${boughtCount}`} />
-              <Chip
-                size="small"
-                color="primary"
-                label={`未購入 ${unboughtCount}`}
-              />
-            </Stack>
+            <Box>
+              <Typography variant="h5" fontWeight={950}>
+                買い物リスト
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ opacity: 0.75, lineHeight: 1.6 }}
+              >
+                「買わない」は<b>冷蔵庫に追加しません</b>
+                。個別削除（ゴミ箱）もできます。
+              </Typography>
+            </Box>
 
-            <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Stack direction="row" spacing={1}>
               <Button
                 variant="contained"
-                startIcon={<DoneAllIcon />}
-                onClick={onMarkAllPurchased}
-                disabled={bulkBusy || unboughtCount === 0}
+                onClick={() => setGenOpen(true)}
                 sx={{
                   borderRadius: 999,
                   fontWeight: 950,
+                  px: 2.4,
+                  py: 1.1,
                   textTransform: "none",
                 }}
               >
-                {bulkBusy ? "更新中..." : "一括買った"}
+                献立から生成
               </Button>
-
               <Button
+                component={NextLink}
+                href="/recipes/weekly"
                 variant="outlined"
-                color="error"
-                startIcon={<DeleteOutlineIcon />}
-                onClick={() => setConfirmOpen(true)}
-                disabled={bulkBusy || activeItems.length === 0}
                 sx={{
                   borderRadius: 999,
                   fontWeight: 950,
+                  px: 2.2,
+                  py: 1.1,
                   textTransform: "none",
                 }}
               >
-                リストを削除
+                献立を確認
               </Button>
             </Stack>
           </Stack>
+        </Stack>
 
-          <Divider sx={{ mb: 1 }} />
-
-          {loading ? (
-            <Stack spacing={1}>
-              <Skeleton variant="rounded" height={52} />
-              <Skeleton variant="rounded" height={52} />
-              <Skeleton variant="rounded" height={52} />
-            </Stack>
-          ) : activeItems.length === 0 ? (
-            <Typography variant="body2" sx={{ opacity: 0.75 }}>
-              まだ何もありません。下の「手動で追加」から追加できます。
+        {/* 生成ダイアログ（Transitionなし） */}
+        <Dialog
+          open={genOpen}
+          onClose={() => (!genBusy ? setGenOpen(false) : null)}
+          maxWidth="xs"
+          fullWidth
+          transitionDuration={0}
+        >
+          <DialogTitle sx={{ fontWeight: 950 }}>献立から生成</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
+              明日から何日分の献立を対象にする？
             </Typography>
-          ) : (
-            <List disablePadding>
-              {activeItems.map((it) => {
-                const isOpen = !!openMap[it.id];
-                const memoValue = memoDraft[it.id] ?? "";
-                const memoChanged = (it.memo || "") !== memoValue;
-                const memoBusy = !!memoSaving[it.id];
-                const skipBusy = !!skipSaving[it.id];
-                const purchasedBusy = !!purchasedSaving[it.id];
-                const delBusy = !!deleteBusy[it.id];
 
-                return (
-                  <Box key={it.id}>
-                    <ListItem disablePadding sx={{ borderRadius: 2, mb: 0.6 }}>
-                      <ListItemButton
-                        sx={{
-                          borderRadius: 2,
-                          alignItems: "flex-start",
-                          py: 1.1,
-                        }}
-                        onClick={() => !uiFreezing && toggleOpen(it.id)}
-                        disabled={uiFreezing}
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant={genDays === 2 ? "contained" : "outlined"}
+                onClick={() => setGenDays(2)}
+                sx={{
+                  borderRadius: 999,
+                  fontWeight: 900,
+                  textTransform: "none",
+                }}
+              >
+                2日分
+              </Button>
+              <Button
+                variant={genDays === 3 ? "contained" : "outlined"}
+                onClick={() => setGenDays(3)}
+                sx={{
+                  borderRadius: 999,
+                  fontWeight: 900,
+                  textTransform: "none",
+                }}
+              >
+                3日分
+              </Button>
+            </Stack>
+
+            {genError ? (
+              <Alert severity="error" sx={{ mt: 1.5 }}>
+                {genError}
+              </Alert>
+            ) : null}
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setGenOpen(false)}
+              disabled={genBusy}
+              sx={{ fontWeight: 900 }}
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={onGenerateDraft}
+              variant="contained"
+              disabled={genBusy}
+              sx={{ fontWeight: 950 }}
+            >
+              {genBusy ? "生成中..." : "生成する"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* list */}
+        <Card sx={{ borderRadius: 3, mb: 2 }}>
+          <CardContent>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              alignItems={{ xs: "flex-start", sm: "center" }}
+              justifyContent="space-between"
+              sx={{ mb: 1 }}
+              spacing={1}
+            >
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Typography fontWeight={950}>買うもの</Typography>
+                <Chip size="small" label={`買わない ${skipCount}`} />
+                <Chip size="small" label={`買った ${boughtCount}`} />
+                <Chip
+                  size="small"
+                  color="primary"
+                  label={`未購入 ${unboughtCount}`}
+                />
+              </Stack>
+
+              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                <Button
+                  variant="contained"
+                  startIcon={<DoneAllIcon />}
+                  onClick={onMarkAllPurchased}
+                  disabled={bulkBusy || unboughtCount === 0}
+                  sx={{
+                    borderRadius: 999,
+                    fontWeight: 950,
+                    textTransform: "none",
+                  }}
+                >
+                  {bulkBusy ? "更新中..." : "一括買った"}
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteOutlineIcon />}
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={bulkBusy || activeItems.length === 0}
+                  sx={{
+                    borderRadius: 999,
+                    fontWeight: 950,
+                    textTransform: "none",
+                  }}
+                >
+                  リストを削除
+                </Button>
+              </Stack>
+            </Stack>
+
+            <Divider sx={{ mb: 1 }} />
+
+            {loading ? (
+              <Stack spacing={1}>
+                <Skeleton variant="rounded" height={52} />
+                <Skeleton variant="rounded" height={52} />
+                <Skeleton variant="rounded" height={52} />
+              </Stack>
+            ) : activeItems.length === 0 ? (
+              <Typography variant="body2" sx={{ opacity: 0.75 }}>
+                まだ何もありません。下の「手動で追加」から追加できます。
+              </Typography>
+            ) : (
+              <List disablePadding>
+                {activeItems.map((it) => {
+                  const isOpen = !!openMap[it.id];
+                  const memoValue = memoDraft[it.id] ?? "";
+                  const memoChanged = (it.memo || "") !== memoValue;
+                  const memoBusy = !!memoSaving[it.id];
+                  const skipBusy = !!skipSaving[it.id];
+                  const purchasedBusy = !!purchasedSaving[it.id];
+                  const delBusy = !!deleteBusy[it.id];
+
+                  return (
+                    <Box key={it.id}>
+                      <ListItem
+                        disablePadding
+                        sx={{ borderRadius: 2, mb: 0.6 }}
                       >
-                        <ListItemIcon sx={{ minWidth: 44, mt: 0.2 }}>
-                          <Tooltip
-                            title={
-                              it.skip
-                                ? "買わないON中は買った操作できません"
-                                : "買った"
+                        <ListItemButton
+                          sx={{
+                            borderRadius: 2,
+                            alignItems: "flex-start",
+                            py: 1.1,
+                          }}
+                          onClick={() => !uiFreezing && toggleOpen(it.id)}
+                          disabled={uiFreezing}
+                        >
+                          <ListItemIcon sx={{ minWidth: 44, mt: 0.2 }}>
+                            <Tooltip
+                              title={
+                                it.skip
+                                  ? "買わないON中は買った操作できません"
+                                  : "買った"
+                              }
+                              {...safeTooltipProps}
+                            >
+                              <span>
+                                <Checkbox
+                                  edge="start"
+                                  checked={!!it.purchased}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!purchasedBusy && !uiFreezing)
+                                      togglePurchased(it);
+                                  }}
+                                  disabled={
+                                    it.skip || purchasedBusy || uiFreezing
+                                  }
+                                />
+                              </span>
+                            </Tooltip>
+                          </ListItemIcon>
+
+                          <ListItemText
+                            primary={
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                alignItems="center"
+                                flexWrap="wrap"
+                              >
+                                <Typography
+                                  sx={{
+                                    fontWeight: 950,
+                                    textDecoration:
+                                      it.skip || it.purchased
+                                        ? "line-through"
+                                        : "none",
+                                    opacity: it.skip ? 0.7 : 1,
+                                  }}
+                                >
+                                  {it.name}
+                                </Typography>
+
+                                {it.skip ? (
+                                  <Chip
+                                    size="small"
+                                    label="買わない"
+                                    variant="outlined"
+                                  />
+                                ) : it.purchased ? (
+                                  <Chip
+                                    size="small"
+                                    label="買った"
+                                    color="success"
+                                  />
+                                ) : (
+                                  <Chip
+                                    size="small"
+                                    label="買う"
+                                    color="primary"
+                                  />
+                                )}
+
+                                {(skipBusy || purchasedBusy) && (
+                                  <Chip
+                                    size="small"
+                                    label="更新中..."
+                                    variant="outlined"
+                                  />
+                                )}
+                              </Stack>
                             }
+                            secondary={
+                              <Typography
+                                variant="body2"
+                                sx={{ opacity: 0.75, mt: 0.3 }}
+                              >
+                                {it.sources?.length
+                                  ? `由来 ${it.sources.length}件`
+                                  : ""}
+                              </Typography>
+                            }
+                          />
+
+                          <Tooltip
+                            title="買わない（冷蔵庫に追加しない）"
                             {...safeTooltipProps}
                           >
                             <span>
-                              <Checkbox
-                                edge="start"
-                                checked={!!it.purchased}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (!purchasedBusy && !uiFreezing)
-                                    togglePurchased(it);
-                                }}
-                                disabled={
-                                  it.skip || purchasedBusy || uiFreezing
+                              <FormControlLabel
+                                onClick={(e) => e.stopPropagation()}
+                                sx={{ mr: 0.5, mt: 0.1 }}
+                                control={
+                                  <Switch
+                                    checked={!!it.skip}
+                                    onChange={() => {
+                                      if (!skipBusy && !uiFreezing)
+                                        toggleSkip(it);
+                                    }}
+                                    disabled={skipBusy || uiFreezing}
+                                  />
                                 }
+                                label={
+                                  <Typography
+                                    variant="caption"
+                                    sx={{ fontWeight: 900 }}
+                                  >
+                                    買わない
+                                  </Typography>
+                                }
+                                labelPlacement="start"
                               />
                             </span>
                           </Tooltip>
-                        </ListItemIcon>
 
-                        <ListItemText
-                          primary={
+                          <Tooltip title="削除" {...safeTooltipProps}>
+                            <span>
+                              <IconButton
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!uiFreezing) onDeleteOne(it);
+                                }}
+                                disabled={delBusy || uiFreezing}
+                              >
+                                <DeleteOutlineIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!uiFreezing) toggleOpen(it.id);
+                            }}
+                            sx={{ mt: 0.1 }}
+                            disabled={uiFreezing}
+                          >
+                            {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                          </IconButton>
+                        </ListItemButton>
+                      </ListItem>
+
+                      {/* ✅ Collapse廃止：条件描画 */}
+                      {!uiFreezing && isOpen && (
+                        <Box
+                          sx={{
+                            px: 2,
+                            pb: 1.5,
+                            pt: 0.6,
+                            mb: 1.0,
+                            borderRadius: 2,
+                            bgcolor: "rgba(0,0,0,0.02)",
+                            border: "1px solid rgba(0,0,0,0.06)",
+                          }}
+                        >
+                          <Stack spacing={0.8} sx={{ mb: 1.2 }}>
                             <Stack
                               direction="row"
-                              spacing={1}
+                              spacing={0.8}
                               alignItems="center"
-                              flexWrap="wrap"
                             >
-                              <Typography
-                                sx={{
-                                  fontWeight: 950,
-                                  textDecoration:
-                                    it.skip || it.purchased
-                                      ? "line-through"
-                                      : "none",
-                                  opacity: it.skip ? 0.7 : 1,
-                                }}
-                              >
-                                {it.name}
+                              <InfoOutlinedIcon fontSize="small" />
+                              <Typography fontWeight={950}>
+                                由来（数量テキスト）
                               </Typography>
-
-                              {it.skip ? (
-                                <Chip
-                                  size="small"
-                                  label="買わない"
-                                  variant="outlined"
-                                />
-                              ) : it.purchased ? (
-                                <Chip
-                                  size="small"
-                                  label="買った"
-                                  color="success"
-                                />
-                              ) : (
-                                <Chip
-                                  size="small"
-                                  label="買う"
-                                  color="primary"
-                                />
-                              )}
-
-                              {(skipBusy || purchasedBusy) && (
-                                <Chip
-                                  size="small"
-                                  label="更新中..."
-                                  variant="outlined"
-                                />
-                              )}
-                            </Stack>
-                          }
-                          secondary={
-                            <Typography
-                              variant="body2"
-                              sx={{ opacity: 0.75, mt: 0.3 }}
-                            >
-                              {it.sources?.length
-                                ? `由来 ${it.sources.length}件`
-                                : ""}
-                            </Typography>
-                          }
-                        />
-
-                        <Tooltip
-                          title="買わない（冷蔵庫に追加しない）"
-                          {...safeTooltipProps}
-                        >
-                          <span>
-                            <FormControlLabel
-                              onClick={(e) => e.stopPropagation()}
-                              sx={{ mr: 0.5, mt: 0.1 }}
-                              control={
-                                <Switch
-                                  checked={!!it.skip}
-                                  onChange={() => {
-                                    if (!skipBusy && !uiFreezing)
-                                      toggleSkip(it);
-                                  }}
-                                  disabled={skipBusy || uiFreezing}
-                                />
-                              }
-                              label={
-                                <Typography
-                                  variant="caption"
-                                  sx={{ fontWeight: 900 }}
-                                >
-                                  買わない
-                                </Typography>
-                              }
-                              labelPlacement="start"
-                            />
-                          </span>
-                        </Tooltip>
-
-                        <Tooltip title="削除" {...safeTooltipProps}>
-                          <span>
-                            <IconButton
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (!uiFreezing) onDeleteOne(it);
-                              }}
-                              disabled={delBusy || uiFreezing}
-                            >
-                              <DeleteOutlineIcon />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!uiFreezing) toggleOpen(it.id);
-                          }}
-                          sx={{ mt: 0.1 }}
-                          disabled={uiFreezing}
-                        >
-                          {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                        </IconButton>
-                      </ListItemButton>
-                    </ListItem>
-
-                    {/* ✅ Collapse廃止：条件描画 */}
-                    {!uiFreezing && isOpen && (
-                      <Box
-                        sx={{
-                          px: 2,
-                          pb: 1.5,
-                          pt: 0.6,
-                          mb: 1.0,
-                          borderRadius: 2,
-                          bgcolor: "rgba(0,0,0,0.02)",
-                          border: "1px solid rgba(0,0,0,0.06)",
-                        }}
-                      >
-                        <Stack spacing={0.8} sx={{ mb: 1.2 }}>
-                          <Stack
-                            direction="row"
-                            spacing={0.8}
-                            alignItems="center"
-                          >
-                            <InfoOutlinedIcon fontSize="small" />
-                            <Typography fontWeight={950}>
-                              由来（数量テキスト）
-                            </Typography>
-                            <Chip
-                              size="small"
-                              label={`${it.sources?.length || 0}件`}
-                              variant="outlined"
-                            />
-                          </Stack>
-
-                          {it.sources?.length ? (
-                            <Box
-                              sx={{
-                                borderRadius: 2,
-                                bgcolor: "#fff",
-                                border: "1px solid rgba(0,0,0,0.06)",
-                                p: 1.2,
-                              }}
-                            >
-                              <Stack spacing={0.6}>
-                                {it.sources.map((s, idx) => (
-                                  <Typography
-                                    key={`${it.id}-src-${idx}`}
-                                    variant="body2"
-                                    sx={{ opacity: 0.85, lineHeight: 1.6 }}
-                                  >
-                                    ・{sourceLine(s)}
-                                  </Typography>
-                                ))}
-                              </Stack>
-                            </Box>
-                          ) : (
-                            <Typography variant="body2" sx={{ opacity: 0.75 }}>
-                              由来情報がありません（手動追加など）
-                            </Typography>
-                          )}
-                        </Stack>
-
-                        <Stack spacing={0.8}>
-                          <Stack
-                            direction="row"
-                            spacing={0.8}
-                            alignItems="center"
-                          >
-                            <NotesIcon fontSize="small" />
-                            <Typography fontWeight={950}>メモ</Typography>
-                            {memoChanged && (
                               <Chip
                                 size="small"
-                                label="未保存"
-                                color="warning"
+                                label={`${it.sources?.length || 0}件`}
+                                variant="outlined"
                               />
+                            </Stack>
+
+                            {it.sources?.length ? (
+                              <Box
+                                sx={{
+                                  borderRadius: 2,
+                                  bgcolor: "#fff",
+                                  border: "1px solid rgba(0,0,0,0.06)",
+                                  p: 1.2,
+                                }}
+                              >
+                                <Stack spacing={0.6}>
+                                  {it.sources.map((s, idx) => (
+                                    <Typography
+                                      key={`${it.id}-src-${idx}`}
+                                      variant="body2"
+                                      sx={{ opacity: 0.85, lineHeight: 1.6 }}
+                                    >
+                                      ・{sourceLine(s)}
+                                    </Typography>
+                                  ))}
+                                </Stack>
+                              </Box>
+                            ) : (
+                              <Typography
+                                variant="body2"
+                                sx={{ opacity: 0.75 }}
+                              >
+                                由来情報がありません（手動追加など）
+                              </Typography>
                             )}
                           </Stack>
 
-                          <TextField
-                            fullWidth
-                            multiline
-                            minRows={2}
-                            placeholder="例：特売で買う / 代替OK / なくてもOK"
-                            value={memoValue}
-                            onChange={(e) =>
-                              onChangeMemo(it.id, e.target.value)
-                            }
-                            sx={{ bgcolor: "#fff", borderRadius: 2 }}
-                          />
-
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            justifyContent="flex-end"
-                          >
-                            <Button
-                              onClick={() => saveMemo(it)}
-                              disabled={!memoChanged || memoBusy}
-                              variant="contained"
-                              sx={{
-                                borderRadius: 999,
-                                fontWeight: 950,
-                                textTransform: "none",
-                                px: 2.6,
-                              }}
+                          <Stack spacing={0.8}>
+                            <Stack
+                              direction="row"
+                              spacing={0.8}
+                              alignItems="center"
                             >
-                              {memoBusy ? "保存中..." : "メモ保存"}
-                            </Button>
+                              <NotesIcon fontSize="small" />
+                              <Typography fontWeight={950}>メモ</Typography>
+                              {memoChanged && (
+                                <Chip
+                                  size="small"
+                                  label="未保存"
+                                  color="warning"
+                                />
+                              )}
+                            </Stack>
+
+                            <TextField
+                              fullWidth
+                              multiline
+                              minRows={2}
+                              placeholder="例：特売で買う / 代替OK / なくてもOK"
+                              value={memoValue}
+                              onChange={(e) =>
+                                onChangeMemo(it.id, e.target.value)
+                              }
+                              sx={{ bgcolor: "#fff", borderRadius: 2 }}
+                            />
+
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              justifyContent="flex-end"
+                            >
+                              <Button
+                                onClick={() => saveMemo(it)}
+                                disabled={!memoChanged || memoBusy}
+                                variant="contained"
+                                sx={{
+                                  borderRadius: 999,
+                                  fontWeight: 950,
+                                  textTransform: "none",
+                                  px: 2.6,
+                                }}
+                              >
+                                {memoBusy ? "保存中..." : "メモ保存"}
+                              </Button>
+                            </Stack>
                           </Stack>
-                        </Stack>
-                      </Box>
-                    )}
-                  </Box>
-                );
-              })}
-            </List>
-          )}
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })}
+              </List>
+            )}
 
-          {/* 冷蔵庫に追加 */}
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
-            <Button
-              variant="contained"
-              onClick={syncToFridge}
-              disabled={pendingSyncItems.length === 0 || syncing}
-              sx={{
-                borderRadius: 999,
-                fontWeight: 950,
-                px: 3.5,
-                py: 1.2,
-                minWidth: 260,
-                boxShadow: 3,
-                textTransform: "none",
-              }}
+            {/* 冷蔵庫に追加 */}
+            <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+              <Button
+                variant="contained"
+                onClick={syncToFridge}
+                disabled={pendingSyncItems.length === 0 || syncing}
+                sx={{
+                  borderRadius: 999,
+                  fontWeight: 950,
+                  px: 3.5,
+                  py: 1.2,
+                  minWidth: 260,
+                  boxShadow: 3,
+                  textTransform: "none",
+                }}
+              >
+                {syncing ? (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <CircularProgress size={18} />
+                    <span>反映中...</span>
+                  </Stack>
+                ) : pendingSyncItems.length === 0 ? (
+                  "反映対象がありません"
+                ) : (
+                  `冷蔵庫に追加（${pendingSyncItems.length}件）`
+                )}
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* 手動で追加 */}
+        <Card sx={{ borderRadius: 3, mb: 2 }}>
+          <CardContent>
+            <Typography fontWeight={950} sx={{ mb: 1 }}>
+              手動で追加
+            </Typography>
+
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <TextField
+                fullWidth
+                label="買うもの（例：牛乳 / 洗剤 / ねぎ）"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addItem();
+                }}
+              />
+              <Button
+                variant="contained"
+                onClick={addItem}
+                disabled={!name.trim()}
+                sx={{
+                  borderRadius: 999,
+                  fontWeight: 900,
+                  px: 3,
+                  py: 1.1,
+                  textTransform: "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                ＋ 追加
+              </Button>
+            </Stack>
+
+            <Typography
+              variant="caption"
+              sx={{ opacity: 0.7, display: "block", mt: 1 }}
             >
-              {syncing ? (
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <CircularProgress size={18} />
-                  <span>反映中...</span>
-                </Stack>
-              ) : pendingSyncItems.length === 0 ? (
-                "反映対象がありません"
-              ) : (
-                `冷蔵庫に追加（${pendingSyncItems.length}件）`
-              )}
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
+              ※手動追加は「カスタム・期限3日」で登録します（シンプル優先）
+            </Typography>
+          </CardContent>
+        </Card>
 
-      {/* 手動で追加 */}
-      <Card sx={{ borderRadius: 3, mb: 2 }}>
-        <CardContent>
-          <Typography fontWeight={950} sx={{ mb: 1 }}>
-            手動で追加
-          </Typography>
+        {/* 日用品・調味料メモ */}
+        <Card sx={{ borderRadius: 3 }}>
+          <CardContent>
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              sx={{ mb: 1 }}
+            >
+              <NotesIcon fontSize="small" />
+              <Typography fontWeight={950}>日用品・調味料メモ</Typography>
+              <Chip
+                size="small"
+                label="端末をまたいで共有OK"
+                variant="outlined"
+              />
+              {notesBusy ? (
+                <Chip size="small" label="保存中..." variant="outlined" />
+              ) : null}
+            </Stack>
 
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
             <TextField
               fullWidth
-              label="買うもの（例：牛乳 / 洗剤 / ねぎ）"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addItem();
-              }}
+              multiline
+              minRows={4}
+              placeholder={"例：\n・洗剤\n・ラップ\n・醤油\n・ごま油"}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              sx={{ bgcolor: "#fff", borderRadius: 2 }}
             />
-            <Button
-              variant="contained"
-              onClick={addItem}
-              disabled={!name.trim()}
-              sx={{
-                borderRadius: 999,
-                fontWeight: 900,
-                px: 3,
-                py: 1.1,
-                textTransform: "none",
-                whiteSpace: "nowrap",
-              }}
+
+            <Typography
+              variant="caption"
+              sx={{ opacity: 0.7, display: "block", mt: 1 }}
             >
-              ＋ 追加
-            </Button>
-          </Stack>
+              ※このメモは Firestore（users/{`{userId}`}
+              .shoppingNote）に保存されます。
+            </Typography>
+          </CardContent>
+        </Card>
 
-          <Typography
-            variant="caption"
-            sx={{ opacity: 0.7, display: "block", mt: 1 }}
-          >
-            ※手動追加は「カスタム・期限3日」で登録します（シンプル優先）
-          </Typography>
-        </CardContent>
-      </Card>
-
-      {/* 日用品・調味料メモ */}
-      <Card sx={{ borderRadius: 3 }}>
-        <CardContent>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-            <NotesIcon fontSize="small" />
-            <Typography fontWeight={950}>日用品・調味料メモ</Typography>
-            <Chip
-              size="small"
-              label="端末をまたいで共有OK"
-              variant="outlined"
-            />
-            {notesBusy ? (
-              <Chip size="small" label="保存中..." variant="outlined" />
-            ) : null}
-          </Stack>
-
-          <TextField
-            fullWidth
-            multiline
-            minRows={4}
-            placeholder={"例：\n・洗剤\n・ラップ\n・醤油\n・ごま油"}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            sx={{ bgcolor: "#fff", borderRadius: 2 }}
-          />
-
-          <Typography
-            variant="caption"
-            sx={{ opacity: 0.7, display: "block", mt: 1 }}
-          >
-            ※このメモは Firestore（users/{`{userId}`}
-            .shoppingNote）に保存されます。
-          </Typography>
-        </CardContent>
-      </Card>
-
-      {/* 全件削除 confirm */}
-      <Dialog
-        open={confirmOpen}
-        onClose={() => (!bulkBusy ? setConfirmOpen(false) : null)}
-        maxWidth="xs"
-        fullWidth
-        transitionDuration={0}
-      >
-        <DialogTitle sx={{ fontWeight: 950 }}>
-          買い物リストを全件削除しますか？
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ opacity: 0.8, lineHeight: 1.7 }}>
-            この操作は取り消せません。
-            <br />
-            「確定後の買い物リスト（shoppingItems）」を全て削除します。
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setConfirmOpen(false)}
-            disabled={bulkBusy}
-            sx={{ fontWeight: 900 }}
-          >
-            キャンセル
-          </Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={onDeleteAll}
-            disabled={bulkBusy}
-            sx={{ fontWeight: 950 }}
-          >
-            {bulkBusy ? "削除中..." : "全件削除"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ✅ 自前Toast */}
-      {toast.open && (
-        <Box
-          sx={{
-            position: "fixed",
-            left: "50%",
-            bottom: 24,
-            transform: "translateX(-50%)",
-            width: "calc(100% - 32px)",
-            maxWidth: 520,
-            zIndex: 1400,
-          }}
+        {/* 全件削除 confirm */}
+        <Dialog
+          open={confirmOpen}
+          onClose={() => (!bulkBusy ? setConfirmOpen(false) : null)}
+          maxWidth="xs"
+          fullWidth
+          transitionDuration={0}
         >
-          <Alert
-            severity={toast.sev}
-            onClose={() => setToast((p) => ({ ...p, open: false }))}
-            sx={{ fontWeight: 900, boxShadow: 6, borderRadius: 2 }}
+          <DialogTitle sx={{ fontWeight: 950 }}>
+            買い物リストを全件削除しますか？
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ opacity: 0.8, lineHeight: 1.7 }}>
+              この操作は取り消せません。
+              <br />
+              「確定後の買い物リスト（shoppingItems）」を全て削除します。
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setConfirmOpen(false)}
+              disabled={bulkBusy}
+              sx={{ fontWeight: 900 }}
+            >
+              キャンセル
+            </Button>
+            <Button
+              color="error"
+              variant="contained"
+              onClick={onDeleteAll}
+              disabled={bulkBusy}
+              sx={{ fontWeight: 950 }}
+            >
+              {bulkBusy ? "削除中..." : "全件削除"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ✅ 自前Toast */}
+        {toast.open && (
+          <Box
+            sx={{
+              position: "fixed",
+              left: "50%",
+              bottom: 24,
+              transform: "translateX(-50%)",
+              width: "calc(100% - 32px)",
+              maxWidth: 520,
+              zIndex: 1400,
+            }}
           >
-            {toast.msg}
-          </Alert>
-        </Box>
-      )}
-    </Box>
+            <Alert
+              severity={toast.sev}
+              onClose={() => setToast((p) => ({ ...p, open: false }))}
+              sx={{ fontWeight: 900, boxShadow: 6, borderRadius: 2 }}
+            >
+              {toast.msg}
+            </Alert>
+          </Box>
+        )}
+      </Box>
+    </AppLayout>
   );
 }
