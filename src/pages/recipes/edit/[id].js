@@ -1,4 +1,5 @@
 // src/pages/recipes/edit/[id].js
+import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useMemo, useState } from "react";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/router";
@@ -114,13 +115,13 @@ export default function EditRecipe() {
         setIngredients(
           Array.isArray(data.ingredients) && data.ingredients.length > 0
             ? data.ingredients
-            : [{ name: "", quantity: "" }]
+            : [{ name: "", quantity: "" }],
         );
 
         setSeasonings(
           Array.isArray(data.seasonings) && data.seasonings.length > 0
             ? data.seasonings
-            : [{ name: "", quantity: "" }]
+            : [{ name: "", quantity: "" }],
         );
 
         setCurrentImageUrl(data.imageUrl || "");
@@ -129,12 +130,12 @@ export default function EditRecipe() {
         setCalories(
           data.calories !== undefined && data.calories !== null
             ? String(data.calories)
-            : ""
+            : "",
         );
         setCookingTime(
           data.cookingTime !== undefined && data.cookingTime !== null
             ? String(data.cookingTime)
-            : ""
+            : "",
         );
 
         setCategory(data.category || "main");
@@ -147,7 +148,7 @@ export default function EditRecipe() {
                 .map((t) => normalizeTag(t))
                 .filter(Boolean)
                 .slice(0, MAX_TAGS)
-            : []
+            : [],
         );
 
         // ✅ 疲労モードフラグ（古いデータは無いのでフォールバック）
@@ -322,313 +323,323 @@ export default function EditRecipe() {
   }
 
   return (
-    <Paper
-      elevation={3}
-      sx={{
-        maxWidth: 720,
-        mx: "auto",
-        mt: 5,
-        p: { xs: 2, sm: 4 },
-        borderRadius: 2,
-      }}
-    >
-      <Typography variant="h5" mb={2} fontWeight={900}>
-        ✏️ レシピを編集する
-      </Typography>
+    <AppLayout title="レシピ編集" activeNav="recipes">
+      <Paper
+        elevation={3}
+        sx={{
+          maxWidth: 720,
+          mx: "auto",
+          mt: 5,
+          p: { xs: 2, sm: 4 },
+          borderRadius: 2,
+        }}
+      >
+        <Typography variant="h5" mb={2} fontWeight={900}>
+          ✏️ レシピを編集する
+        </Typography>
 
-      {errorMsg && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {errorMsg}
-        </Alert>
-      )}
-
-      {/* レシピ名 */}
-      <TextField
-        label="レシピ名"
-        variant="outlined"
-        fullWidth
-        value={recipeName}
-        onChange={(e) => setRecipeName(e.target.value)}
-        sx={{ mb: 2 }}
-        disabled={saving}
-      />
-
-      {/* 画像 */}
-      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-        <Button
-          variant="contained"
-          component="label"
-          startIcon={<CloudUpload />}
-          disabled={saving}
-        >
-          画像を変更
-          <input
-            type="file"
-            hidden
-            accept="image/*"
-            onChange={handleImageSelect}
-          />
-        </Button>
-
-        {previewUrl && (
-          <img
-            src={previewUrl}
-            alt="preview"
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: 8,
-              objectFit: "cover",
-              border: "1px solid rgba(0,0,0,0.08)",
-            }}
-          />
+        {errorMsg && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {errorMsg}
+          </Alert>
         )}
-      </Stack>
 
-      {/* タグ */}
-      <Divider sx={{ my: 2 }} />
-      <Typography variant="h6" mb={1} fontWeight={900}>
-        🔍 検索タグ（最大{MAX_TAGS}つ）
-      </Typography>
-
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mb: 1 }}>
+        {/* レシピ名 */}
         <TextField
-          label="タグを追加（例：時短 / 玉ねぎ / 節約 / かんたんレシピ）"
-          value={tagInput}
-          onChange={(e) => setTagInput(e.target.value)}
-          onKeyDown={handleTagKeyDown}
+          label="レシピ名"
+          variant="outlined"
           fullWidth
-          disabled={saving || searchTags.length >= MAX_TAGS}
-          helperText={
-            searchTags.length >= MAX_TAGS
-              ? `タグは最大${MAX_TAGS}つまでです`
-              : "Enterでも追加できます（先頭の # は不要）"
-          }
+          value={recipeName}
+          onChange={(e) => setRecipeName(e.target.value)}
+          sx={{ mb: 2 }}
+          disabled={saving}
         />
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddTag}
-          disabled={saving || !canAddTag}
-          sx={{ borderRadius: 2, whiteSpace: "nowrap" }}
-        >
-          追加
-        </Button>
-      </Stack>
 
-      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
-        {searchTags.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            タグは未設定です
-          </Typography>
-        ) : (
-          searchTags.map((t) => (
-            <Chip
-              key={t}
-              label={`#${t}`}
-              color="primary"
-              onDelete={saving ? undefined : () => handleDeleteTag(t)}
-              sx={{ fontWeight: 800 }}
+        {/* 画像 */}
+        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+          <Button
+            variant="contained"
+            component="label"
+            startIcon={<CloudUpload />}
+            disabled={saving}
+          >
+            画像を変更
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              onChange={handleImageSelect}
             />
-          ))
-        )}
-      </Stack>
+          </Button>
 
-      {/* 具材 */}
-      <Divider sx={{ my: 2 }} />
-      <Typography variant="h6" mb={1} fontWeight={900}>
-        🥬 具材（必須）
-      </Typography>
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt="preview"
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 8,
+                objectFit: "cover",
+                border: "1px solid rgba(0,0,0,0.08)",
+              }}
+            />
+          )}
+        </Stack>
 
-      {ingredients.map((ingredient, index) => (
+        {/* タグ */}
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="h6" mb={1} fontWeight={900}>
+          🔍 検索タグ（最大{MAX_TAGS}つ）
+        </Typography>
+
         <Stack
-          key={`ing-${index}`}
-          direction="row"
-          spacing={1.5}
-          alignItems="center"
-          sx={{ mb: 1.5 }}
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          sx={{ mb: 1 }}
         >
           <TextField
-            label="具材名"
-            variant="outlined"
+            label="タグを追加（例：時短 / 玉ねぎ / 節約 / かんたんレシピ）"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={handleTagKeyDown}
             fullWidth
-            value={ingredient.name}
-            onChange={(e) =>
-              handleIngredientChange(index, "name", e.target.value)
+            disabled={saving || searchTags.length >= MAX_TAGS}
+            helperText={
+              searchTags.length >= MAX_TAGS
+                ? `タグは最大${MAX_TAGS}つまでです`
+                : "Enterでも追加できます（先頭の # は不要）"
             }
-            disabled={saving}
           />
-          <TextField
-            label="量"
-            variant="outlined"
-            fullWidth
-            value={ingredient.quantity}
-            onChange={(e) =>
-              handleIngredientChange(index, "quantity", e.target.value)
-            }
-            disabled={saving}
-          />
-          <IconButton
-            color="error"
-            onClick={() => handleRemoveIngredient(index)}
-            disabled={saving || ingredients.length === 1}
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddTag}
+            disabled={saving || !canAddTag}
+            sx={{ borderRadius: 2, whiteSpace: "nowrap" }}
           >
-            <RemoveCircleOutline />
-          </IconButton>
+            追加
+          </Button>
         </Stack>
-      ))}
 
-      <Button
-        variant="outlined"
-        startIcon={<AddCircleOutline />}
-        onClick={handleAddIngredient}
-        sx={{ mb: 2 }}
-        disabled={saving}
-      >
-        具材を追加
-      </Button>
+        <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
+          {searchTags.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              タグは未設定です
+            </Typography>
+          ) : (
+            searchTags.map((t) => (
+              <Chip
+                key={t}
+                label={`#${t}`}
+                color="primary"
+                onDelete={saving ? undefined : () => handleDeleteTag(t)}
+                sx={{ fontWeight: 800 }}
+              />
+            ))
+          )}
+        </Stack>
 
-      {/* 調味料 */}
-      <Typography variant="h6" mb={1} fontWeight={900}>
-        🧂 調味料（任意）
-      </Typography>
+        {/* 具材 */}
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="h6" mb={1} fontWeight={900}>
+          🥬 具材（必須）
+        </Typography>
 
-      {seasonings.map((seasoning, index) => (
-        <Stack
-          key={`sea-${index}`}
-          direction="row"
-          spacing={1.5}
-          alignItems="center"
-          sx={{ mb: 1.5 }}
-        >
-          <TextField
-            label="調味料名"
-            variant="outlined"
-            fullWidth
-            value={seasoning.name}
-            onChange={(e) =>
-              handleSeasoningChange(index, "name", e.target.value)
-            }
-            disabled={saving}
-          />
-          <TextField
-            label="量"
-            variant="outlined"
-            fullWidth
-            value={seasoning.quantity}
-            onChange={(e) =>
-              handleSeasoningChange(index, "quantity", e.target.value)
-            }
-            disabled={saving}
-          />
-          <IconButton
-            color="error"
-            onClick={() => handleRemoveSeasoning(index)}
-            disabled={saving || seasonings.length === 1}
+        {ingredients.map((ingredient, index) => (
+          <Stack
+            key={`ing-${index}`}
+            direction="row"
+            spacing={1.5}
+            alignItems="center"
+            sx={{ mb: 1.5 }}
           >
-            <RemoveCircleOutline />
-          </IconButton>
-        </Stack>
-      ))}
-
-      <Button
-        variant="outlined"
-        startIcon={<AddCircleOutline />}
-        onClick={handleAddSeasoning}
-        sx={{ mb: 2 }}
-        disabled={saving}
-      >
-        調味料を追加
-      </Button>
-
-      {/* 疲労モード用 */}
-      <Divider sx={{ my: 2 }} />
-      <Typography variant="h6" mb={1} fontWeight={900}>
-        ⚡ 疲労モード用（任意）
-      </Typography>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2 }}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={isMicrowave}
-              onChange={(e) => setIsMicrowave(e.target.checked)}
+            <TextField
+              label="具材名"
+              variant="outlined"
+              fullWidth
+              value={ingredient.name}
+              onChange={(e) =>
+                handleIngredientChange(index, "name", e.target.value)
+              }
               disabled={saving}
             />
-          }
-          label="レンチンOK"
-        />
-        <FormControlLabel
-          control={
-            <Switch
-              checked={isLowDishwashing}
-              onChange={(e) => setIsLowDishwashing(e.target.checked)}
+            <TextField
+              label="量"
+              variant="outlined"
+              fullWidth
+              value={ingredient.quantity}
+              onChange={(e) =>
+                handleIngredientChange(index, "quantity", e.target.value)
+              }
               disabled={saving}
             />
-          }
-          label="洗い物少"
-        />
-        <Chip size="small" label="※10分は調理時間で判定" variant="outlined" />
-      </Stack>
+            <IconButton
+              color="error"
+              onClick={() => handleRemoveIngredient(index)}
+              disabled={saving || ingredients.length === 1}
+            >
+              <RemoveCircleOutline />
+            </IconButton>
+          </Stack>
+        ))}
 
-      {/* レシピ情報 */}
-      <Divider sx={{ my: 2 }} />
-      <Typography variant="h6" mb={1} fontWeight={900}>
-        レシピ情報
-      </Typography>
-
-      <FormControl component="fieldset" sx={{ mb: 2 }}>
-        <FormLabel component="legend">料理のカテゴリー</FormLabel>
-        <RadioGroup
-          row
-          name="recipe-category"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          <FormControlLabel value="staple" control={<Radio />} label="主食" />
-          <FormControlLabel value="main" control={<Radio />} label="主菜" />
-          <FormControlLabel value="side" control={<Radio />} label="副菜" />
-          <FormControlLabel value="soup" control={<Radio />} label="汁物" />
-        </RadioGroup>
-      </FormControl>
-
-      <Stack spacing={2} sx={{ mb: 3 }}>
-        <TextField
-          label="カロリー (kcal)"
-          type="number"
-          value={calories}
-          onChange={(e) => setCalories(e.target.value)}
-          fullWidth
-          disabled={saving}
-        />
-        <TextField
-          label="調理時間 (分)"
-          type="number"
-          value={cookingTime}
-          onChange={(e) => setCookingTime(e.target.value)}
-          fullWidth
-          disabled={saving}
-        />
-        <TextField
-          label="動画URL"
-          value={videoUrl}
-          onChange={(e) => setVideoUrl(e.target.value)}
-          fullWidth
-          disabled={saving}
-          placeholder="https://www.youtube.com/watch?v=..."
-        />
-      </Stack>
-
-      <Box textAlign="center">
         <Button
-          variant="contained"
-          color="primary"
-          onClick={updateRecipe}
-          sx={{ px: 5, borderRadius: 999 }}
+          variant="outlined"
+          startIcon={<AddCircleOutline />}
+          onClick={handleAddIngredient}
+          sx={{ mb: 2 }}
           disabled={saving}
         >
-          {saving ? "更新中…" : "更新する"}
+          具材を追加
         </Button>
-      </Box>
-    </Paper>
+
+        {/* 調味料 */}
+        <Typography variant="h6" mb={1} fontWeight={900}>
+          🧂 調味料（任意）
+        </Typography>
+
+        {seasonings.map((seasoning, index) => (
+          <Stack
+            key={`sea-${index}`}
+            direction="row"
+            spacing={1.5}
+            alignItems="center"
+            sx={{ mb: 1.5 }}
+          >
+            <TextField
+              label="調味料名"
+              variant="outlined"
+              fullWidth
+              value={seasoning.name}
+              onChange={(e) =>
+                handleSeasoningChange(index, "name", e.target.value)
+              }
+              disabled={saving}
+            />
+            <TextField
+              label="量"
+              variant="outlined"
+              fullWidth
+              value={seasoning.quantity}
+              onChange={(e) =>
+                handleSeasoningChange(index, "quantity", e.target.value)
+              }
+              disabled={saving}
+            />
+            <IconButton
+              color="error"
+              onClick={() => handleRemoveSeasoning(index)}
+              disabled={saving || seasonings.length === 1}
+            >
+              <RemoveCircleOutline />
+            </IconButton>
+          </Stack>
+        ))}
+
+        <Button
+          variant="outlined"
+          startIcon={<AddCircleOutline />}
+          onClick={handleAddSeasoning}
+          sx={{ mb: 2 }}
+          disabled={saving}
+        >
+          調味料を追加
+        </Button>
+
+        {/* 疲労モード用 */}
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="h6" mb={1} fontWeight={900}>
+          ⚡ 疲労モード用（任意）
+        </Typography>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          sx={{ mb: 2 }}
+        >
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isMicrowave}
+                onChange={(e) => setIsMicrowave(e.target.checked)}
+                disabled={saving}
+              />
+            }
+            label="レンチンOK"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isLowDishwashing}
+                onChange={(e) => setIsLowDishwashing(e.target.checked)}
+                disabled={saving}
+              />
+            }
+            label="洗い物少"
+          />
+          <Chip size="small" label="※10分は調理時間で判定" variant="outlined" />
+        </Stack>
+
+        {/* レシピ情報 */}
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="h6" mb={1} fontWeight={900}>
+          レシピ情報
+        </Typography>
+
+        <FormControl component="fieldset" sx={{ mb: 2 }}>
+          <FormLabel component="legend">料理のカテゴリー</FormLabel>
+          <RadioGroup
+            row
+            name="recipe-category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <FormControlLabel value="staple" control={<Radio />} label="主食" />
+            <FormControlLabel value="main" control={<Radio />} label="主菜" />
+            <FormControlLabel value="side" control={<Radio />} label="副菜" />
+            <FormControlLabel value="soup" control={<Radio />} label="汁物" />
+          </RadioGroup>
+        </FormControl>
+
+        <Stack spacing={2} sx={{ mb: 3 }}>
+          <TextField
+            label="カロリー (kcal)"
+            type="number"
+            value={calories}
+            onChange={(e) => setCalories(e.target.value)}
+            fullWidth
+            disabled={saving}
+          />
+          <TextField
+            label="調理時間 (分)"
+            type="number"
+            value={cookingTime}
+            onChange={(e) => setCookingTime(e.target.value)}
+            fullWidth
+            disabled={saving}
+          />
+          <TextField
+            label="動画URL"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            fullWidth
+            disabled={saving}
+            placeholder="https://www.youtube.com/watch?v=..."
+          />
+        </Stack>
+
+        <Box textAlign="center">
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={updateRecipe}
+            sx={{ px: 5, borderRadius: 999 }}
+            disabled={saving}
+          >
+            {saving ? "更新中…" : "更新する"}
+          </Button>
+        </Box>
+      </Paper>
+    </AppLayout>
   );
 }
