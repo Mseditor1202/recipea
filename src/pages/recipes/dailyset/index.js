@@ -1,4 +1,5 @@
 // pages/recipes/dailyset/index.jsx
+import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/router";
 import {
@@ -157,7 +158,7 @@ export default function DailySetsListPage() {
 
   const isEmpty = useMemo(
     () => !loading && dailySets.length === 0,
-    [loading, dailySets]
+    [loading, dailySets],
   );
 
   const handleCreateNew = () => {
@@ -167,7 +168,7 @@ export default function DailySetsListPage() {
   // ✅ スロット単位で recipes 一覧へ（セットモード）
   const handleChangeSlotRecipe = (dailySetId, slotKey) => {
     router.push(
-      `/recipes?mode=dailySet&slot=${slotKey}&dailySetId=${dailySetId}&from=dailyset`
+      `/recipes?mode=dailySet&slot=${slotKey}&dailySetId=${dailySetId}&from=dailyset`,
     );
   };
 
@@ -262,7 +263,7 @@ export default function DailySetsListPage() {
       const draft = memoDrafts[setDoc.id] ?? original;
       return draft !== original;
     },
-    [memoDrafts]
+    [memoDrafts],
   );
 
   // ✅ 保存処理
@@ -285,7 +286,7 @@ export default function DailySetsListPage() {
 
         // ✅ 画面上のdailySetsも更新（即反映）
         setDailySets((prev) =>
-          prev.map((d) => (d.id === dailySetId ? { ...d, memo: draft } : d))
+          prev.map((d) => (d.id === dailySetId ? { ...d, memo: draft } : d)),
         );
 
         openToast("success", "保存しました");
@@ -293,273 +294,275 @@ export default function DailySetsListPage() {
         console.error(e);
         openToast(
           "error",
-          "保存に失敗しました。通信状況を確認して再度お試しください。"
+          "保存に失敗しました。通信状況を確認して再度お試しください。",
         );
       } finally {
         setSavingById((prev) => ({ ...prev, [dailySetId]: false }));
       }
     },
-    [memoDrafts, openToast]
+    [memoDrafts, openToast],
   );
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: "auto" }}>
-      {/* Header */}
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        alignItems={{ xs: "flex-start", sm: "center" }}
-        justifyContent="space-between"
-        sx={{ mb: 3 }}
-      >
-        <Box>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 800 }}>
-            献立レシピセット一覧
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            主食・主菜・副菜・汁物の組み合わせを「1食セット」として管理します。
-          </Typography>
-        </Box>
-
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateNew}
+    <AppLayout title="献立レシピセット" activeNav="meal">
+      <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, mx: "auto" }}>
+        {/* Header */}
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          alignItems={{ xs: "flex-start", sm: "center" }}
+          justifyContent="space-between"
+          sx={{ mb: 3 }}
         >
-          新しい献立レシピセットを作成
-        </Button>
-      </Stack>
+          <Box>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 800 }}>
+              献立レシピセット一覧
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              主食・主菜・副菜・汁物の組み合わせを「1食セット」として管理します。
+            </Typography>
+          </Box>
 
-      {error && (
-        <Box
-          sx={{
-            mb: 2,
-            p: 2,
-            borderRadius: 2,
-            bgcolor: "error.light",
-            color: "error.contrastText",
-          }}
-        >
-          <Typography variant="body2">{error}</Typography>
-        </Box>
-      )}
-
-      {/* Loading */}
-      {loading && (
-        <Grid container spacing={2}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Grid item xs={12} sm={6} md={4} key={i}>
-              <Card>
-                <CardContent>
-                  <Skeleton width="70%" />
-                  <Skeleton width="40%" sx={{ mt: 1 }} />
-                  <Divider sx={{ my: 1.5 }} />
-                  <Grid container spacing={1}>
-                    {Array.from({ length: 4 }).map((__, j) => (
-                      <Grid item xs={3} key={j}>
-                        <Skeleton variant="rectangular" height={70} />
-                        <Skeleton width="60%" />
-                      </Grid>
-                    ))}
-                  </Grid>
-                  <Skeleton
-                    width="50%"
-                    sx={{ mt: 2, borderRadius: 9999 }}
-                    height={32}
-                  />
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      )}
-
-      {/* Empty */}
-      {isEmpty && (
-        <Box sx={{ mt: 4, textAlign: "center", color: "text.secondary" }}>
-          <Typography variant="body1" sx={{ mb: 1 }}>
-            まだ献立レシピセットがありません。
-          </Typography>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={handleCreateNew}
           >
-            最初の献立レシピセットを作成する
+            新しい献立レシピセットを作成
           </Button>
-        </Box>
-      )}
+        </Stack>
 
-      {/* List */}
-      {!loading && dailySets.length > 0 && (
-        <Grid container spacing={2}>
-          {dailySets.map((setDoc) => {
-            const draft = memoDrafts[setDoc.id] ?? (setDoc.memo || "");
-            const dirty = isDirty(setDoc);
-            const saving = !!savingById[setDoc.id];
+        {error && (
+          <Box
+            sx={{
+              mb: 2,
+              p: 2,
+              borderRadius: 2,
+              bgcolor: "error.light",
+              color: "error.contrastText",
+            }}
+          >
+            <Typography variant="body2">{error}</Typography>
+          </Box>
+        )}
 
-            return (
-              <Grid
-                item
-                xs={12}
-                sm={6}
-                md={4}
-                key={setDoc.id}
-                sx={{ display: "flex" }}
-              >
-                <Card
-                  sx={{
-                    height: "100%",
-                    width: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Stack
-                      direction="row"
-                      alignItems="center"
-                      justifyContent="space-between"
-                      sx={{ mb: 1 }}
-                    >
-                      <Typography
-                        variant="h6"
-                        component="h2"
-                        sx={{ fontWeight: 800 }}
-                        noWrap
-                        title={setDoc.name}
-                      >
-                        {setDoc.name || "名称未設定セット"}
-                      </Typography>
-
-                      {setDoc.createdAt && setDoc.createdAt.toDate && (
-                        <Typography variant="caption" color="text.secondary">
-                          {new Date(
-                            setDoc.createdAt.toDate()
-                          ).toLocaleDateString("ja-JP", {
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </Typography>
-                      )}
-                    </Stack>
-
+        {/* Loading */}
+        {loading && (
+          <Grid container spacing={2}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Grid item xs={12} sm={6} md={4} key={i}>
+                <Card>
+                  <CardContent>
+                    <Skeleton width="70%" />
+                    <Skeleton width="40%" sx={{ mt: 1 }} />
                     <Divider sx={{ my: 1.5 }} />
-
                     <Grid container spacing={1}>
-                      <Grid item xs={3}>
-                        {renderRecipeSlot("staple", setDoc.staple, setDoc.id)}
-                      </Grid>
-                      <Grid item xs={3}>
-                        {renderRecipeSlot(
-                          "mainDish",
-                          setDoc.mainDish,
-                          setDoc.id
-                        )}
-                      </Grid>
-                      <Grid item xs={3}>
-                        {renderRecipeSlot(
-                          "sideDish",
-                          setDoc.sideDish,
-                          setDoc.id
-                        )}
-                      </Grid>
-                      <Grid item xs={3}>
-                        {renderRecipeSlot("soup", setDoc.soup, setDoc.id)}
-                      </Grid>
+                      {Array.from({ length: 4 }).map((__, j) => (
+                        <Grid item xs={3} key={j}>
+                          <Skeleton variant="rectangular" height={70} />
+                          <Skeleton width="60%" />
+                        </Grid>
+                      ))}
                     </Grid>
-                  </CardContent>
-
-                  {/* ✅ Memo 編集 & 保存 */}
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      borderTop: "1px solid",
-                      borderColor: "divider",
-                    }}
-                  >
-                    <Stack
-                      direction="row"
-                      alignItems="center"
-                      justifyContent="space-between"
-                      sx={{ mb: 0.5 }}
-                    >
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: "block" }}
-                      >
-                        メモ
-                      </Typography>
-
-                      <Button
-                        size="small"
-                        variant={dirty ? "contained" : "outlined"}
-                        startIcon={<SaveIcon />}
-                        disabled={!dirty || saving}
-                        onClick={() => handleSaveMemo(setDoc)}
-                        sx={{
-                          textTransform: "none",
-                          borderRadius: 999,
-                          minWidth: 110,
-                        }}
-                      >
-                        {saving ? "保存中…" : "保存"}
-                      </Button>
-                    </Stack>
-
-                    <TextField
-                      value={draft}
-                      onChange={(e) =>
-                        handleMemoChange(setDoc.id, e.target.value)
-                      }
-                      placeholder="例）家族は汁物なしでもOK / 明日は多めに作る など"
-                      size="small"
-                      fullWidth
-                      multiline
-                      minRows={2}
-                      maxRows={6}
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: 2,
-                          bgcolor: "background.paper",
-                        },
-                      }}
+                    <Skeleton
+                      width="50%"
+                      sx={{ mt: 2, borderRadius: 9999 }}
+                      height={32}
                     />
-
-                    {dirty && (
-                      <Typography
-                        variant="caption"
-                        color="warning.main"
-                        sx={{ display: "block", mt: 0.75 }}
-                      >
-                        未保存の変更があります
-                      </Typography>
-                    )}
-                  </Box>
+                  </CardContent>
                 </Card>
               </Grid>
-            );
-          })}
-        </Grid>
-      )}
+            ))}
+          </Grid>
+        )}
 
-      {/* ✅ Snackbar Toast（画面右下） */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={2500}
-        onClose={closeToast}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-      >
-        <Alert
+        {/* Empty */}
+        {isEmpty && (
+          <Box sx={{ mt: 4, textAlign: "center", color: "text.secondary" }}>
+            <Typography variant="body1" sx={{ mb: 1 }}>
+              まだ献立レシピセットがありません。
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleCreateNew}
+            >
+              最初の献立レシピセットを作成する
+            </Button>
+          </Box>
+        )}
+
+        {/* List */}
+        {!loading && dailySets.length > 0 && (
+          <Grid container spacing={2}>
+            {dailySets.map((setDoc) => {
+              const draft = memoDrafts[setDoc.id] ?? (setDoc.memo || "");
+              const dirty = isDirty(setDoc);
+              const saving = !!savingById[setDoc.id];
+
+              return (
+                <Grid
+                  item
+                  xs={12}
+                  sm={6}
+                  md={4}
+                  key={setDoc.id}
+                  sx={{ display: "flex" }}
+                >
+                  <Card
+                    sx={{
+                      height: "100%",
+                      width: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                    }}
+                  >
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        sx={{ mb: 1 }}
+                      >
+                        <Typography
+                          variant="h6"
+                          component="h2"
+                          sx={{ fontWeight: 800 }}
+                          noWrap
+                          title={setDoc.name}
+                        >
+                          {setDoc.name || "名称未設定セット"}
+                        </Typography>
+
+                        {setDoc.createdAt && setDoc.createdAt.toDate && (
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(
+                              setDoc.createdAt.toDate(),
+                            ).toLocaleDateString("ja-JP", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </Typography>
+                        )}
+                      </Stack>
+
+                      <Divider sx={{ my: 1.5 }} />
+
+                      <Grid container spacing={1}>
+                        <Grid item xs={3}>
+                          {renderRecipeSlot("staple", setDoc.staple, setDoc.id)}
+                        </Grid>
+                        <Grid item xs={3}>
+                          {renderRecipeSlot(
+                            "mainDish",
+                            setDoc.mainDish,
+                            setDoc.id,
+                          )}
+                        </Grid>
+                        <Grid item xs={3}>
+                          {renderRecipeSlot(
+                            "sideDish",
+                            setDoc.sideDish,
+                            setDoc.id,
+                          )}
+                        </Grid>
+                        <Grid item xs={3}>
+                          {renderRecipeSlot("soup", setDoc.soup, setDoc.id)}
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+
+                    {/* ✅ Memo 編集 & 保存 */}
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderTop: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        sx={{ mb: 0.5 }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: "block" }}
+                        >
+                          メモ
+                        </Typography>
+
+                        <Button
+                          size="small"
+                          variant={dirty ? "contained" : "outlined"}
+                          startIcon={<SaveIcon />}
+                          disabled={!dirty || saving}
+                          onClick={() => handleSaveMemo(setDoc)}
+                          sx={{
+                            textTransform: "none",
+                            borderRadius: 999,
+                            minWidth: 110,
+                          }}
+                        >
+                          {saving ? "保存中…" : "保存"}
+                        </Button>
+                      </Stack>
+
+                      <TextField
+                        value={draft}
+                        onChange={(e) =>
+                          handleMemoChange(setDoc.id, e.target.value)
+                        }
+                        placeholder="例）家族は汁物なしでもOK / 明日は多めに作る など"
+                        size="small"
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        maxRows={6}
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            borderRadius: 2,
+                            bgcolor: "background.paper",
+                          },
+                        }}
+                      />
+
+                      {dirty && (
+                        <Typography
+                          variant="caption"
+                          color="warning.main"
+                          sx={{ display: "block", mt: 0.75 }}
+                        >
+                          未保存の変更があります
+                        </Typography>
+                      )}
+                    </Box>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        )}
+
+        {/* ✅ Snackbar Toast（画面右下） */}
+        <Snackbar
+          open={toast.open}
+          autoHideDuration={2500}
           onClose={closeToast}
-          severity={toast.severity}
-          variant="filled"
-          sx={{ borderRadius: 2 }}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         >
-          {toast.message}
-        </Alert>
-      </Snackbar>
-    </Box>
+          <Alert
+            onClose={closeToast}
+            severity={toast.severity}
+            variant="filled"
+            sx={{ borderRadius: 2 }}
+          >
+            {toast.message}
+          </Alert>
+        </Snackbar>
+      </Box>
+    </AppLayout>
   );
 }
