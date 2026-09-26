@@ -1,10 +1,6 @@
 // pages/recipes/weekly/day/[dayKey].jsx
-import React, {
-  DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import AppLayout from "@/components/layout/AppLayout";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
   Box,
@@ -263,7 +259,7 @@ export default function WeeklyDayEditPage() {
           [picker.meal]: { [picker.slot]: recipeId },
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
 
       setSaveMsg("レシピをセットしました。");
@@ -287,7 +283,7 @@ export default function WeeklyDayEditPage() {
       await setDoc(
         doc(db, "weeklyDaySets", String(dayKey)),
         { memo: dayDoc.memo || "", updatedAt: serverTimestamp() },
-        { merge: true }
+        { merge: true },
       );
       setSaveMsg("メモを保存しました。");
     } catch (e) {
@@ -300,7 +296,7 @@ export default function WeeklyDayEditPage() {
 
   const handleApplyDailySetTemplate = async (
     mealKey: MealKey,
-    dailySetId: string
+    dailySetId: string,
   ) => {
     setErrorMsg("");
     setSaveMsg("");
@@ -319,7 +315,7 @@ export default function WeeklyDayEditPage() {
           templateIds: { [mealKey]: "" },
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
 
       setSaveMsg("テンプレを解除しました。");
@@ -354,7 +350,7 @@ export default function WeeklyDayEditPage() {
           templateIds: { [mealKey]: dailySetId },
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
       setSaveMsg("献立レシピセット（テンプレ）を適用しました。");
     } catch (e) {
@@ -374,356 +370,371 @@ export default function WeeklyDayEditPage() {
   }
 
   return (
-    <Box sx={{ bgcolor: "#faf7f0", minHeight: "100vh", py: 4 }}>
-      <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 1.5, sm: 2, md: 3 } }}>
-        <Stack spacing={2.5}>
-          {/* Header */}
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-          >
-            <Box>
-              <Typography variant="h5" sx={{ fontWeight: 900 }}>
-                週間の献立（日別編集）
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                対象日：{String(dayKey || "")}
-              </Typography>
-            </Box>
+    <AppLayout title="献立編集" activeNav="meal">
+      <Box sx={{ bgcolor: "#faf7f0", minHeight: "100vh", py: 4 }}>
+        <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 1.5, sm: 2, md: 3 } }}>
+          <Stack spacing={2.5}>
+            {/* Header */}
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+            >
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 900 }}>
+                  週間の献立（日別編集）
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  対象日：{String(dayKey || "")}
+                </Typography>
+              </Box>
 
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="outlined"
-                sx={{ borderRadius: 999, textTransform: "none" }}
-                onClick={() => router.push("/recipes/weekly")}
-              >
-                週間へ
-              </Button>
-              <Button
-                variant="outlined"
-                sx={{ borderRadius: 999, textTransform: "none" }}
-                onClick={() => router.push("/recipes")}
-              >
-                レシピ一覧へ
-              </Button>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="outlined"
+                  sx={{ borderRadius: 999, textTransform: "none" }}
+                  onClick={() => router.push("/recipes/weekly")}
+                >
+                  週間へ
+                </Button>
+                <Button
+                  variant="outlined"
+                  sx={{ borderRadius: 999, textTransform: "none" }}
+                  onClick={() => router.push("/recipes")}
+                >
+                  レシピ一覧へ
+                </Button>
+              </Stack>
             </Stack>
-          </Stack>
 
-          {loading && (
-            <Typography variant="body2" color="text.secondary">
-              読み込み中...
-            </Typography>
-          )}
-          {errorMsg && (
-            <Typography variant="body2" color="error">
-              {errorMsg}
-            </Typography>
-          )}
-          {saveMsg && (
-            <Typography variant="body2" color="success.main">
-              {saveMsg}
-            </Typography>
-          )}
-
-          {/* Main card */}
-          <Card
-            sx={{ borderRadius: 3, boxShadow: "0 12px 30px rgba(0,0,0,0.06)" }}
-          >
-            <CardContent>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1 }}>
-                献立（{String(dayKey || "")}）
+            {loading && (
+              <Typography variant="body2" color="text.secondary">
+                読み込み中...
               </Typography>
-              <Divider sx={{ mb: 2 }} />
+            )}
+            {errorMsg && (
+              <Typography variant="body2" color="error">
+                {errorMsg}
+              </Typography>
+            )}
+            {saveMsg && (
+              <Typography variant="body2" color="success.main">
+                {saveMsg}
+              </Typography>
+            )}
 
-              <Stack spacing={3}>
-                {MEALS.map((meal) => (
-                  <Box key={meal.key}>
-                    <Stack
-                      direction={{ xs: "column", sm: "row" }}
-                      justifyContent="space-between"
-                      alignItems={{ xs: "flex-start", sm: "center" }}
-                      spacing={1}
-                      sx={{ mb: 1 }}
-                    >
-                      <Typography sx={{ fontWeight: 900 }}>
-                        {meal.icon} {meal.label}
-                      </Typography>
+            {/* Main card */}
+            <Card
+              sx={{
+                borderRadius: 3,
+                boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
+              }}
+            >
+              <CardContent>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1 }}>
+                  献立（{String(dayKey || "")}）
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
 
-                      <TextField
-                        select
-                        size="small"
-                        label="献立テンプレ（献立レシピセット）"
-                        value={dayDoc.templateIds?.[meal.key as MealKey] ?? ""}
-                        onChange={(e) =>
-                          handleApplyDailySetTemplate(
-                            meal.key as MealKey,
-                            String(e.target.value)
-                          )
-                        }
-                        sx={{ width: { xs: "100%", sm: 360 } }}
-                        disabled={saving || dailySets.length === 0}
+                <Stack spacing={3}>
+                  {MEALS.map((meal) => (
+                    <Box key={meal.key}>
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        justifyContent="space-between"
+                        alignItems={{ xs: "flex-start", sm: "center" }}
+                        spacing={1}
+                        sx={{ mb: 1 }}
                       >
-                        <MenuItem value="">
-                          <em>テンプレ未使用</em>
-                        </MenuItem>
-                        {dailySets.map((t) => (
-                          <MenuItem key={t.id} value={t.id}>
-                            {t.name || "名前なしセット"}
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {meal.icon} {meal.label}
+                        </Typography>
+
+                        <TextField
+                          select
+                          size="small"
+                          label="献立テンプレ（献立レシピセット）"
+                          value={
+                            dayDoc.templateIds?.[meal.key as MealKey] ?? ""
+                          }
+                          onChange={(e) =>
+                            handleApplyDailySetTemplate(
+                              meal.key as MealKey,
+                              String(e.target.value),
+                            )
+                          }
+                          sx={{ width: { xs: "100%", sm: 360 } }}
+                          disabled={saving || dailySets.length === 0}
+                        >
+                          <MenuItem value="">
+                            <em>テンプレ未使用</em>
                           </MenuItem>
-                        ))}
-                      </TextField>
-                    </Stack>
+                          {dailySets.map((t) => (
+                            <MenuItem key={t.id} value={t.id}>
+                              {t.name || "名前なしセット"}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Stack>
 
-                    {/* ✅ 4列固定に近い見せ方：lg以上で4列、mdで2列、smで2列、xsで1列 */}
-                    <Grid container spacing={2}>
-                      {SLOTS.map((slot) => {
-                        const mealKey = meal.key as MealKey;
-                        const slotKey = slot.key as SlotKey;
-                        const recipeId = dayDoc?.[mealKey]?.[slotKey] || null;
-                        const name = recipeId
-                          ? getRecipeName(recipeId)
-                          : "未設定";
-                        const img = recipeId ? getRecipeImg(recipeId) : "";
+                      {/* ✅ 4列固定に近い見せ方：lg以上で4列、mdで2列、smで2列、xsで1列 */}
+                      <Grid container spacing={2}>
+                        {SLOTS.map((slot) => {
+                          const mealKey = meal.key as MealKey;
+                          const slotKey = slot.key as SlotKey;
+                          const recipeId = dayDoc?.[mealKey]?.[slotKey] || null;
+                          const name = recipeId
+                            ? getRecipeName(recipeId)
+                            : "未設定";
+                          const img = recipeId ? getRecipeImg(recipeId) : "";
 
-                        return (
-                          <Grid
-                            key={`${meal.key}-${slot.key}`}
-                            size={{ xs: 12, sm: 6, md: 6, lg: 3 }}
-                            sx={{ display: "flex" }}
-                          >
-                            <Card
-                              variant="outlined"
-                              sx={{
-                                width: "100%",
-                                minWidth: 0,
-                                display: "flex",
-                                flexDirection: "column",
-                                borderRadius: 2.5,
-                                overflow: "hidden",
-                                borderColor: "#eee0cc",
-                                background: "#fff",
-                              }}
+                          return (
+                            <Grid
+                              key={`${meal.key}-${slot.key}`}
+                              size={{ xs: 12, sm: 6, md: 6, lg: 3 }}
+                              sx={{ display: "flex" }}
                             >
-                              <Box sx={{ px: 1.25, pt: 1.25, pb: 0.75 }}>
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                  sx={{ fontWeight: 800 }}
-                                >
-                                  {slot.label}
-                                </Typography>
-                              </Box>
-
-                              <Box sx={{ px: 1.25, pb: 1.25 }}>
-                                <Box
-                                  sx={{
-                                    width: "100%",
-                                    borderRadius: 2,
-                                    overflow: "hidden",
-                                    border: "1px solid #f0e6d6",
-                                  }}
-                                >
-                                  <RecipeImage
-                                    imageUrl={img}
-                                    title={name}
-                                    height={170}
-                                    sx={{}}
-                                  />
+                              <Card
+                                variant="outlined"
+                                sx={{
+                                  width: "100%",
+                                  minWidth: 0,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  borderRadius: 2.5,
+                                  overflow: "hidden",
+                                  borderColor: "#eee0cc",
+                                  background: "#fff",
+                                }}
+                              >
+                                <Box sx={{ px: 1.25, pt: 1.25, pb: 0.75 }}>
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{ fontWeight: 800 }}
+                                  >
+                                    {slot.label}
+                                  </Typography>
                                 </Box>
 
-                                <Typography
-                                  variant="body2"
-                                  sx={{
-                                    mt: 1,
-                                    fontWeight: 900,
-                                    display: "-webkit-box",
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: "vertical",
-                                    overflow: "hidden",
-                                    minHeight: 40,
-                                  }}
-                                  title={name}
-                                >
-                                  {name}
-                                </Typography>
+                                <Box sx={{ px: 1.25, pb: 1.25 }}>
+                                  <Box
+                                    sx={{
+                                      width: "100%",
+                                      borderRadius: 2,
+                                      overflow: "hidden",
+                                      border: "1px solid #f0e6d6",
+                                    }}
+                                  >
+                                    <RecipeImage
+                                      imageUrl={img}
+                                      title={name}
+                                      height={170}
+                                      sx={{}}
+                                    />
+                                  </Box>
 
-                                <Button
-                                  fullWidth
-                                  variant="outlined"
-                                  size="small"
-                                  sx={{
-                                    mt: 1,
-                                    borderRadius: 999,
-                                    textTransform: "none",
-                                  }}
-                                  onClick={() =>
-                                    openPicker(
-                                      meal.key as MealKey,
-                                      slot.key as SlotKey
-                                    )
-                                  }
-                                  disabled={saving || recipeList.length === 0}
-                                >
-                                  このレシピを変更
-                                </Button>
-                              </Box>
-                            </Card>
-                          </Grid>
-                        );
-                      })}
-                    </Grid>
-                  </Box>
-                ))}
-              </Stack>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      mt: 1,
+                                      fontWeight: 900,
+                                      display: "-webkit-box",
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: "vertical",
+                                      overflow: "hidden",
+                                      minHeight: 40,
+                                    }}
+                                    title={name}
+                                  >
+                                    {name}
+                                  </Typography>
 
-              <Divider sx={{ my: 3 }} />
-
-              {/* memo */}
-              <Box>
-                <Typography sx={{ fontWeight: 900, mb: 1 }}>メモ</Typography>
-                <TextField
-                  multiline
-                  minRows={3}
-                  fullWidth
-                  placeholder="例：買い物メモ、作り置きの段取り、家族の要望 など"
-                  value={dayDoc.memo}
-                  onChange={(e) =>
-                    setDayDoc((prev) => ({ ...prev, memo: e.target.value }))
-                  }
-                />
-                <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1 }}>
-                  <Button
-                    variant="contained"
-                    sx={{ borderRadius: 999, textTransform: "none" }}
-                    onClick={handleSaveMemo}
-                    disabled={saving}
-                  >
-                    メモを保存
-                  </Button>
+                                  <Button
+                                    fullWidth
+                                    variant="outlined"
+                                    size="small"
+                                    sx={{
+                                      mt: 1,
+                                      borderRadius: 999,
+                                      textTransform: "none",
+                                    }}
+                                    onClick={() =>
+                                      openPicker(
+                                        meal.key as MealKey,
+                                        slot.key as SlotKey,
+                                      )
+                                    }
+                                    disabled={saving || recipeList.length === 0}
+                                  >
+                                    このレシピを変更
+                                  </Button>
+                                </Box>
+                              </Card>
+                            </Grid>
+                          );
+                        })}
+                      </Grid>
+                    </Box>
+                  ))}
                 </Stack>
-              </Box>
-            </CardContent>
-          </Card>
 
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-            <Chip size="small" label="テンプレ：dailySets" />
-            <Chip size="small" label="保存先：weeklyDaySets" />
-            <Chip size="small" label="Drawerで編集" />
-          </Stack>
-        </Stack>
-      </Box>
+                <Divider sx={{ my: 3 }} />
 
-      {/* Drawer */}
-      <Drawer anchor="right" open={drawerOpen} onClose={closePicker}>
-        <Box sx={{ width: { xs: 340, sm: 460 }, p: 2 }}>
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-            sx={{ mb: 1 }}
-          >
-            <Typography variant="h6" sx={{ fontWeight: 900 }}>
-              {pickerTitle}
-            </Typography>
-            <Button
-              size="small"
-              onClick={closePicker}
-              sx={{ textTransform: "none" }}
-            >
-              閉じる
-            </Button>
-          </Stack>
-
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            {picker?.dayKey || ""}
-          </Typography>
-
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="レシピ名で検索"
-            value={pickerSearch}
-            onChange={(e) => setPickerSearch(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ mb: 1 }}
-          />
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={useCategoryFilter}
-                onChange={(e) => setUseCategoryFilter(e.target.checked)}
-              />
-            }
-            label="カテゴリで絞り込む"
-            sx={{ mb: 1 }}
-          />
-
-          <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: "wrap" }}>
-            <Chip size="small" label={`slot: ${picker?.slot || "-"}`} />
-            <Chip size="small" label={`${pickerFiltered.length} 件`} />
-            {useCategoryFilter && picker && (
-              <Chip
-                size="small"
-                label="0件なら自動で全件表示"
-                variant="outlined"
-              />
-            )}
-          </Stack>
-
-          <List sx={{ p: 0 }}>
-            {pickerFiltered.slice(0, 150).map((r) => {
-              const secondaryText = [
-                `category: ${r.category || "-"}`,
-                typeof r.cookingTime === "number"
-                  ? `調理: ${r.cookingTime}分`
-                  : null,
-                typeof r.calories === "number" ? `${r.calories}kcal` : null,
-              ]
-                .filter((v): v is string => typeof v === "string")
-                .join(" / ");
-
-              return (
-                <ListItemButton
-                  key={r.id}
-                  onClick={() => handlePickRecipe(r.id)}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    border: "1px solid #eee0cc",
-                    backgroundColor: "#fff",
-                    "&:hover": { backgroundColor: "#fff8e1" },
-                  }}
-                >
-                  <ListItemText
-                    primary={r.recipeName || "名称未設定"}
-                    secondary={secondaryText}
+                {/* memo */}
+                <Box>
+                  <Typography sx={{ fontWeight: 900, mb: 1 }}>メモ</Typography>
+                  <TextField
+                    multiline
+                    minRows={3}
+                    fullWidth
+                    placeholder="例：買い物メモ、作り置きの段取り、家族の要望 など"
+                    value={dayDoc.memo}
+                    onChange={(e) =>
+                      setDayDoc((prev) => ({ ...prev, memo: e.target.value }))
+                    }
                   />
-                </ListItemButton>
-              );
-            })}
-          </List>
+                  <Stack
+                    direction="row"
+                    justifyContent="flex-end"
+                    sx={{ mt: 1 }}
+                  >
+                    <Button
+                      variant="contained"
+                      sx={{ borderRadius: 999, textTransform: "none" }}
+                      onClick={handleSaveMemo}
+                      disabled={saving}
+                    >
+                      メモを保存
+                    </Button>
+                  </Stack>
+                </Box>
+              </CardContent>
+            </Card>
 
-          {recipeList.length === 0 && (
-            <Typography variant="body2" color="error" sx={{ mt: 1 }}>
-              recipes が0件です。Firestoreの "recipes" を確認してね。
-            </Typography>
-          )}
-
-          {pickerFiltered.length === 0 && recipeList.length > 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              絞り込み条件で0件です。「カテゴリで絞り込む」をOFFにするか、検索語を消してみてね。
-            </Typography>
-          )}
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+              <Chip size="small" label="テンプレ：dailySets" />
+              <Chip size="small" label="保存先：weeklyDaySets" />
+              <Chip size="small" label="Drawerで編集" />
+            </Stack>
+          </Stack>
         </Box>
-      </Drawer>
-    </Box>
+
+        {/* Drawer */}
+        <Drawer anchor="right" open={drawerOpen} onClose={closePicker}>
+          <Box sx={{ width: { xs: 340, sm: 460 }, p: 2 }}>
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              sx={{ mb: 1 }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                {pickerTitle}
+              </Typography>
+              <Button
+                size="small"
+                onClick={closePicker}
+                sx={{ textTransform: "none" }}
+              >
+                閉じる
+              </Button>
+            </Stack>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              {picker?.dayKey || ""}
+            </Typography>
+
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="レシピ名で検索"
+              value={pickerSearch}
+              onChange={(e) => setPickerSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 1 }}
+            />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={useCategoryFilter}
+                  onChange={(e) => setUseCategoryFilter(e.target.checked)}
+                />
+              }
+              label="カテゴリで絞り込む"
+              sx={{ mb: 1 }}
+            />
+
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ mb: 1.5, flexWrap: "wrap" }}
+            >
+              <Chip size="small" label={`slot: ${picker?.slot || "-"}`} />
+              <Chip size="small" label={`${pickerFiltered.length} 件`} />
+              {useCategoryFilter && picker && (
+                <Chip
+                  size="small"
+                  label="0件なら自動で全件表示"
+                  variant="outlined"
+                />
+              )}
+            </Stack>
+
+            <List sx={{ p: 0 }}>
+              {pickerFiltered.slice(0, 150).map((r) => {
+                const secondaryText = [
+                  `category: ${r.category || "-"}`,
+                  typeof r.cookingTime === "number"
+                    ? `調理: ${r.cookingTime}分`
+                    : null,
+                  typeof r.calories === "number" ? `${r.calories}kcal` : null,
+                ]
+                  .filter((v): v is string => typeof v === "string")
+                  .join(" / ");
+
+                return (
+                  <ListItemButton
+                    key={r.id}
+                    onClick={() => handlePickRecipe(r.id)}
+                    sx={{
+                      borderRadius: 2,
+                      mb: 1,
+                      border: "1px solid #eee0cc",
+                      backgroundColor: "#fff",
+                      "&:hover": { backgroundColor: "#fff8e1" },
+                    }}
+                  >
+                    <ListItemText
+                      primary={r.recipeName || "名称未設定"}
+                      secondary={secondaryText}
+                    />
+                  </ListItemButton>
+                );
+              })}
+            </List>
+
+            {recipeList.length === 0 && (
+              <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                recipes が0件です。Firestoreの "recipes" を確認してね。
+              </Typography>
+            )}
+
+            {pickerFiltered.length === 0 && recipeList.length > 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                絞り込み条件で0件です。「カテゴリで絞り込む」をOFFにするか、検索語を消してみてね。
+              </Typography>
+            )}
+          </Box>
+        </Drawer>
+      </Box>
+    </AppLayout>
   );
 }
