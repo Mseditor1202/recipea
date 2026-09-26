@@ -1,3 +1,4 @@
+import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import {
@@ -101,7 +102,7 @@ export default function EditDailySet() {
 
       // 更新後：slot を維持して戻す
       router.replace(
-        `/recipes/dailyset/${dailySetId}?meal=${meal}&slot=${slot}`
+        `/recipes/dailyset/${dailySetId}?meal=${meal}&slot=${slot}`,
       );
     };
 
@@ -117,37 +118,39 @@ export default function EditDailySet() {
   // ▼ 選択画面へ飛ぶ
   const goSelectRecipe = () => {
     router.push(
-      `/recipes?mode=dailyMeal&meal=${meal}&slot=${slot}&dailySetId=${dailySetId}`
+      `/recipes?mode=dailyMeal&meal=${meal}&slot=${slot}&dailySetId=${dailySetId}`,
     );
   };
 
   return (
-    <Box sx={{ maxWidth: 700, mx: "auto", mt: 4 }}>
-      <Typography variant="h5" mb={2}>
-        ✏️ {MEAL_LABEL[meal]} — {SLOT_LABEL[slot]} のレシピを編集
-      </Typography>
-
-      <Card sx={{ p: 2 }}>
-        <Typography variant="subtitle1" fontWeight={700} mb={1}>
-          現在のレシピ
+    <AppLayout title="献立レシピセット詳細" activeNav="meal">
+      <Box sx={{ maxWidth: 700, mx: "auto", mt: 4 }}>
+        <Typography variant="h5" mb={2}>
+          ✏️ {MEAL_LABEL[meal]} — {SLOT_LABEL[slot]} のレシピを編集
         </Typography>
 
-        <Box sx={{ borderRadius: 2, overflow: "hidden", height: 150 }}>
-          <img
-            src={recipe?.imageUrl || DEFAULT_IMAGE}
-            alt=""
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        </Box>
+        <Card sx={{ p: 2 }}>
+          <Typography variant="subtitle1" fontWeight={700} mb={1}>
+            現在のレシピ
+          </Typography>
 
-        <Typography sx={{ mt: 1, fontWeight: 600 }}>
-          {recipe?.recipeName || "未選択"}
-        </Typography>
+          <Box sx={{ borderRadius: 2, overflow: "hidden", height: 150 }}>
+            <img
+              src={recipe?.imageUrl || DEFAULT_IMAGE}
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          </Box>
 
-        <Button variant="outlined" sx={{ mt: 2 }} onClick={goSelectRecipe}>
-          {recipe ? "変更する" : "追加する"}
-        </Button>
-      </Card>
-    </Box>
+          <Typography sx={{ mt: 1, fontWeight: 600 }}>
+            {recipe?.recipeName || "未選択"}
+          </Typography>
+
+          <Button variant="outlined" sx={{ mt: 2 }} onClick={goSelectRecipe}>
+            {recipe ? "変更する" : "追加する"}
+          </Button>
+        </Card>
+      </Box>
+    </AppLayout>
   );
 }
