@@ -1,4 +1,5 @@
 // pages/shopping/draft/[sessionId].jsx
+import AppLayout from "@/components/layout/AppLayout";
 import React, {
   useEffect,
   useMemo,
@@ -205,7 +206,7 @@ export default function ShoppingDraftPage() {
   // ✅ 「買う件数」判定はここ1本だけ（!skipの数）
   const toAddCount = useMemo(
     () => items.filter((x) => !x.skip).length,
-    [items]
+    [items],
   );
 
   const toggleOpen = (itemId) =>
@@ -216,7 +217,7 @@ export default function ShoppingDraftPage() {
     const next = !it.skip;
 
     setItems((prev) =>
-      prev.map((x) => (x.id === it.id ? { ...x, skip: next } : x))
+      prev.map((x) => (x.id === it.id ? { ...x, skip: next } : x)),
     );
     setSkipSaving((p) => ({ ...p, [it.id]: true }));
 
@@ -225,7 +226,7 @@ export default function ShoppingDraftPage() {
     } catch (e) {
       console.error(e);
       setItems((prev) =>
-        prev.map((x) => (x.id === it.id ? { ...x, skip: !next } : x))
+        prev.map((x) => (x.id === it.id ? { ...x, skip: !next } : x)),
       );
       showToast("更新に失敗しました", "error");
     } finally {
@@ -244,7 +245,7 @@ export default function ShoppingDraftPage() {
     try {
       await setDraftItemMemo(String(sessionId), it.id, v);
       setItems((prev) =>
-        prev.map((x) => (x.id === it.id ? { ...x, memo: v } : x))
+        prev.map((x) => (x.id === it.id ? { ...x, memo: v } : x)),
       );
       showToast("メモを保存しました");
     } catch (e) {
@@ -319,431 +320,440 @@ export default function ShoppingDraftPage() {
   const bottomButtonLabel = applying
     ? "確定中..."
     : toAddCount === 0
-    ? "確定して戻る（買うもの0件）"
-    : `買い物リストを作成（${toAddCount}件）`;
+      ? "確定して戻る（買うもの0件）"
+      : `買い物リストを作成（${toAddCount}件）`;
 
   return (
-    <Box sx={{ maxWidth: 980, mx: "auto", px: 2, pt: 2, pb: 8 }}>
-      {/* header */}
-      <Stack spacing={1.2} sx={{ mb: 2 }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "flex-start", sm: "center" }}
-          spacing={1}
-        >
-          <Box>
-            <Typography variant="h5" fontWeight={950}>
-              買い物リスト（ドラフト）
-            </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.75, lineHeight: 1.7 }}>
-              献立から生成した候補です。<b>買わない</b>{" "}
-              をONにすると確定時に追加されません。
-            </Typography>
-          </Box>
-          <Typography color="error">DRAFT v2026-01-12-01</Typography>
-          <Stack direction="row" spacing={1}>
-            <Button
-              component={NextLink}
-              href="/shopping"
-              variant="outlined"
-              sx={{ borderRadius: 999, fontWeight: 900, textTransform: "none" }}
-              disabled={uiFreezing}
-            >
-              戻る
-            </Button>
+    <AppLayout title="買い物リスト確認">
+      <Box sx={{ maxWidth: 980, mx: "auto", px: 2, pt: 2, pb: 8 }}>
+        {/* header */}
+        <Stack spacing={1.2} sx={{ mb: 2 }}>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            spacing={1}
+          >
+            <Box>
+              <Typography variant="h5" fontWeight={950}>
+                買い物リスト（ドラフト）
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ opacity: 0.75, lineHeight: 1.7 }}
+              >
+                献立から生成した候補です。<b>買わない</b>{" "}
+                をONにすると確定時に追加されません。
+              </Typography>
+            </Box>
+            <Typography color="error">DRAFT v2026-01-12-01</Typography>
+            <Stack direction="row" spacing={1}>
+              <Button
+                component={NextLink}
+                href="/shopping"
+                variant="outlined"
+                sx={{
+                  borderRadius: 999,
+                  fontWeight: 900,
+                  textTransform: "none",
+                }}
+                disabled={uiFreezing}
+              >
+                戻る
+              </Button>
+            </Stack>
           </Stack>
-        </Stack>
 
-        {!!session && (
-          <Stack direction="row" flexWrap="wrap" gap={1}>
-            <Chip
-              label={`対象: 明日から${session.rangeDays}日分`}
-              sx={{ fontWeight: 900 }}
-            />
-            <Chip
-              label={formatDateRange(session)}
-              variant="outlined"
-              sx={{ fontWeight: 900 }}
-            />
-            <Chip
-              label={`全${counts.total}件`}
-              color="primary"
-              sx={{ fontWeight: 900 }}
-            />
-            <Chip
-              label={`買う ${toAddCount}件`}
-              color="success"
-              sx={{ fontWeight: 900 }}
-            />
-            <Chip
-              label={`買わない ${counts.skipped}件`}
-              variant="outlined"
-              sx={{ fontWeight: 900 }}
-            />
-            <Tooltip
-              title="在庫ステータス（完全一致の簡易判定）"
-              {...safeTooltipProps}
-            >
+          {!!session && (
+            <Stack direction="row" flexWrap="wrap" gap={1}>
               <Chip
-                icon={<InfoOutlinedIcon />}
-                label={`在庫: ある${counts.have} / すこし${counts.few} / なし${counts.none} / 不明${counts.unk}`}
+                label={`対象: 明日から${session.rangeDays}日分`}
+                sx={{ fontWeight: 900 }}
+              />
+              <Chip
+                label={formatDateRange(session)}
                 variant="outlined"
                 sx={{ fontWeight: 900 }}
               />
-            </Tooltip>
-          </Stack>
-        )}
-      </Stack>
-
-      {loading ? (
-        <Stack spacing={1}>
-          <Skeleton variant="rounded" height={76} />
-          <Skeleton variant="rounded" height={76} />
-          <Skeleton variant="rounded" height={76} />
-        </Stack>
-      ) : error ? (
-        <Alert severity="error">{error}</Alert>
-      ) : !session ? (
-        <Alert severity="warning">ドラフトが見つかりませんでした。</Alert>
-      ) : (
-        <Card sx={{ borderRadius: 3, overflow: "hidden" }}>
-          <CardContent>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ mb: 1 }}
-            >
-              <Typography fontWeight={950}>候補一覧</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                展開状態は保持されます
-              </Typography>
+              <Chip
+                label={`全${counts.total}件`}
+                color="primary"
+                sx={{ fontWeight: 900 }}
+              />
+              <Chip
+                label={`買う ${toAddCount}件`}
+                color="success"
+                sx={{ fontWeight: 900 }}
+              />
+              <Chip
+                label={`買わない ${counts.skipped}件`}
+                variant="outlined"
+                sx={{ fontWeight: 900 }}
+              />
+              <Tooltip
+                title="在庫ステータス（完全一致の簡易判定）"
+                {...safeTooltipProps}
+              >
+                <Chip
+                  icon={<InfoOutlinedIcon />}
+                  label={`在庫: ある${counts.have} / すこし${counts.few} / なし${counts.none} / 不明${counts.unk}`}
+                  variant="outlined"
+                  sx={{ fontWeight: 900 }}
+                />
+              </Tooltip>
             </Stack>
+          )}
+        </Stack>
 
-            <Divider sx={{ mb: 1 }} />
+        {loading ? (
+          <Stack spacing={1}>
+            <Skeleton variant="rounded" height={76} />
+            <Skeleton variant="rounded" height={76} />
+            <Skeleton variant="rounded" height={76} />
+          </Stack>
+        ) : error ? (
+          <Alert severity="error">{error}</Alert>
+        ) : !session ? (
+          <Alert severity="warning">ドラフトが見つかりませんでした。</Alert>
+        ) : (
+          <Card sx={{ borderRadius: 3, overflow: "hidden" }}>
+            <CardContent>
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1 }}
+              >
+                <Typography fontWeight={950}>候補一覧</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                  展開状態は保持されます
+                </Typography>
+              </Stack>
 
-            {items.length === 0 ? (
-              <Typography variant="body2" sx={{ opacity: 0.75 }}>
-                生成できる材料がありませんでした。レシピの材料設定を確認してね。
-              </Typography>
-            ) : (
-              <List disablePadding>
-                {items.map((it) => {
-                  const isOpen = !!openMap[it.id];
-                  const badge = fridgeBadge(it.fridgeState);
+              <Divider sx={{ mb: 1 }} />
 
-                  const memoValue = memoDraft[it.id] ?? "";
-                  const memoChanged = (it.memo || "") !== memoValue;
-                  const memoBusy = !!memoSaving[it.id];
-                  const skipBusy = !!skipSaving[it.id];
+              {items.length === 0 ? (
+                <Typography variant="body2" sx={{ opacity: 0.75 }}>
+                  生成できる材料がありませんでした。レシピの材料設定を確認してね。
+                </Typography>
+              ) : (
+                <List disablePadding>
+                  {items.map((it) => {
+                    const isOpen = !!openMap[it.id];
+                    const badge = fridgeBadge(it.fridgeState);
 
-                  return (
-                    <Box key={it.id}>
-                      <ListItem
-                        disablePadding
-                        sx={{ borderRadius: 2, mb: 0.6 }}
-                      >
-                        <ListItemButton
-                          sx={{
-                            borderRadius: 2,
-                            alignItems: "flex-start",
-                            py: 1.2,
-                          }}
-                          onClick={() => !uiFreezing && toggleOpen(it.id)}
-                          disabled={uiFreezing}
+                    const memoValue = memoDraft[it.id] ?? "";
+                    const memoChanged = (it.memo || "") !== memoValue;
+                    const memoBusy = !!memoSaving[it.id];
+                    const skipBusy = !!skipSaving[it.id];
+
+                    return (
+                      <Box key={it.id}>
+                        <ListItem
+                          disablePadding
+                          sx={{ borderRadius: 2, mb: 0.6 }}
                         >
-                          <ListItemIcon sx={{ minWidth: 44, mt: 0.2 }}>
-                            <Tooltip
-                              title="買わない（確定時に追加しない）"
-                              {...safeTooltipProps}
-                            >
-                              <span>
-                                <Checkbox
-                                  edge="start"
-                                  checked={!!it.skip}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!skipBusy && !uiFreezing)
-                                      toggleSkip(it);
-                                  }}
-                                  disabled={skipBusy || uiFreezing}
-                                />
-                              </span>
-                            </Tooltip>
-                          </ListItemIcon>
-
-                          <ListItemText
-                            primary={
-                              <Stack
-                                direction="row"
-                                alignItems="center"
-                                spacing={1}
-                                flexWrap="wrap"
-                                sx={{ pr: 1 }}
-                              >
-                                <Typography
-                                  sx={{
-                                    fontWeight: 950,
-                                    textDecoration: it.skip
-                                      ? "line-through"
-                                      : "none",
-                                  }}
-                                >
-                                  {it.name}
-                                </Typography>
-
-                                <Chip
-                                  size="small"
-                                  label={badge.label}
-                                  color={badge.color}
-                                  variant={badge.variant}
-                                  sx={{ fontWeight: 900 }}
-                                />
-
-                                {it.skip ? (
-                                  <Chip
-                                    size="small"
-                                    label="買わない"
-                                    variant="outlined"
-                                    sx={{ fontWeight: 900 }}
-                                  />
-                                ) : (
-                                  <Chip
-                                    size="small"
-                                    label="買う"
-                                    color="primary"
-                                    sx={{ fontWeight: 900 }}
-                                  />
-                                )}
-
-                                {skipBusy && (
-                                  <Chip
-                                    size="small"
-                                    label="更新中..."
-                                    variant="outlined"
-                                  />
-                                )}
-                              </Stack>
-                            }
-                            secondary={
-                              <Typography
-                                variant="body2"
-                                sx={{ opacity: 0.75, mt: 0.4 }}
-                              >
-                                {it.sources?.length
-                                  ? `由来: ${it.sources.length}件`
-                                  : "由来: なし"}
-                              </Typography>
-                            }
-                          />
-
-                          <IconButton
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!uiFreezing) toggleOpen(it.id);
+                          <ListItemButton
+                            sx={{
+                              borderRadius: 2,
+                              alignItems: "flex-start",
+                              py: 1.2,
                             }}
-                            sx={{ mt: 0.2 }}
+                            onClick={() => !uiFreezing && toggleOpen(it.id)}
                             disabled={uiFreezing}
                           >
-                            {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                          </IconButton>
-                        </ListItemButton>
-                      </ListItem>
-
-                      {/* ✅ 条件描画（Transitionなし） */}
-                      {!uiFreezing && isOpen && (
-                        <Box
-                          sx={{
-                            px: 2,
-                            pb: 1.6,
-                            pt: 0.4,
-                            mb: 1.1,
-                            borderRadius: 2,
-                            bgcolor: "rgba(0,0,0,0.02)",
-                            border: "1px solid rgba(0,0,0,0.06)",
-                          }}
-                        >
-                          <Stack spacing={0.8} sx={{ mb: 1.4 }}>
-                            <Stack
-                              direction="row"
-                              spacing={0.8}
-                              alignItems="center"
-                            >
-                              <InfoOutlinedIcon fontSize="small" />
-                              <Typography fontWeight={950}>
-                                使う予定の献立（由来）
-                              </Typography>
-                              <Chip
-                                size="small"
-                                label={`${it.sources?.length || 0}件`}
-                                variant="outlined"
-                              />
-                            </Stack>
-
-                            {it.sources?.length ? (
-                              <Box
-                                sx={{
-                                  borderRadius: 2,
-                                  bgcolor: "#fff",
-                                  border: "1px solid rgba(0,0,0,0.06)",
-                                  p: 1.2,
-                                }}
+                            <ListItemIcon sx={{ minWidth: 44, mt: 0.2 }}>
+                              <Tooltip
+                                title="買わない（確定時に追加しない）"
+                                {...safeTooltipProps}
                               >
-                                <Stack spacing={0.6}>
-                                  {it.sources.map((s, idx) => (
-                                    <Typography
-                                      key={`${it.id}-src-${idx}`}
-                                      variant="body2"
-                                      sx={{ opacity: 0.85, lineHeight: 1.6 }}
-                                    >
-                                      ・{sourceLine(s)}
-                                    </Typography>
-                                  ))}
+                                <span>
+                                  <Checkbox
+                                    edge="start"
+                                    checked={!!it.skip}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!skipBusy && !uiFreezing)
+                                        toggleSkip(it);
+                                    }}
+                                    disabled={skipBusy || uiFreezing}
+                                  />
+                                </span>
+                              </Tooltip>
+                            </ListItemIcon>
+
+                            <ListItemText
+                              primary={
+                                <Stack
+                                  direction="row"
+                                  alignItems="center"
+                                  spacing={1}
+                                  flexWrap="wrap"
+                                  sx={{ pr: 1 }}
+                                >
+                                  <Typography
+                                    sx={{
+                                      fontWeight: 950,
+                                      textDecoration: it.skip
+                                        ? "line-through"
+                                        : "none",
+                                    }}
+                                  >
+                                    {it.name}
+                                  </Typography>
+
+                                  <Chip
+                                    size="small"
+                                    label={badge.label}
+                                    color={badge.color}
+                                    variant={badge.variant}
+                                    sx={{ fontWeight: 900 }}
+                                  />
+
+                                  {it.skip ? (
+                                    <Chip
+                                      size="small"
+                                      label="買わない"
+                                      variant="outlined"
+                                      sx={{ fontWeight: 900 }}
+                                    />
+                                  ) : (
+                                    <Chip
+                                      size="small"
+                                      label="買う"
+                                      color="primary"
+                                      sx={{ fontWeight: 900 }}
+                                    />
+                                  )}
+
+                                  {skipBusy && (
+                                    <Chip
+                                      size="small"
+                                      label="更新中..."
+                                      variant="outlined"
+                                    />
+                                  )}
                                 </Stack>
-                              </Box>
-                            ) : (
-                              <Typography
-                                variant="body2"
-                                sx={{ opacity: 0.75 }}
-                              >
-                                由来情報がありません
-                              </Typography>
-                            )}
-                          </Stack>
+                              }
+                              secondary={
+                                <Typography
+                                  variant="body2"
+                                  sx={{ opacity: 0.75, mt: 0.4 }}
+                                >
+                                  {it.sources?.length
+                                    ? `由来: ${it.sources.length}件`
+                                    : "由来: なし"}
+                                </Typography>
+                              }
+                            />
 
-                          <Stack spacing={0.8} sx={{ mb: 0.6 }}>
-                            <Stack
-                              direction="row"
-                              spacing={0.8}
-                              alignItems="center"
+                            <IconButton
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!uiFreezing) toggleOpen(it.id);
+                              }}
+                              sx={{ mt: 0.2 }}
+                              disabled={uiFreezing}
                             >
-                              <NotesIcon fontSize="small" />
-                              <Typography fontWeight={950}>メモ</Typography>
-                              {memoChanged && (
+                              {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            </IconButton>
+                          </ListItemButton>
+                        </ListItem>
+
+                        {/* ✅ 条件描画（Transitionなし） */}
+                        {!uiFreezing && isOpen && (
+                          <Box
+                            sx={{
+                              px: 2,
+                              pb: 1.6,
+                              pt: 0.4,
+                              mb: 1.1,
+                              borderRadius: 2,
+                              bgcolor: "rgba(0,0,0,0.02)",
+                              border: "1px solid rgba(0,0,0,0.06)",
+                            }}
+                          >
+                            <Stack spacing={0.8} sx={{ mb: 1.4 }}>
+                              <Stack
+                                direction="row"
+                                spacing={0.8}
+                                alignItems="center"
+                              >
+                                <InfoOutlinedIcon fontSize="small" />
+                                <Typography fontWeight={950}>
+                                  使う予定の献立（由来）
+                                </Typography>
                                 <Chip
                                   size="small"
-                                  label="未保存"
-                                  color="warning"
+                                  label={`${it.sources?.length || 0}件`}
+                                  variant="outlined"
                                 />
+                              </Stack>
+
+                              {it.sources?.length ? (
+                                <Box
+                                  sx={{
+                                    borderRadius: 2,
+                                    bgcolor: "#fff",
+                                    border: "1px solid rgba(0,0,0,0.06)",
+                                    p: 1.2,
+                                  }}
+                                >
+                                  <Stack spacing={0.6}>
+                                    {it.sources.map((s, idx) => (
+                                      <Typography
+                                        key={`${it.id}-src-${idx}`}
+                                        variant="body2"
+                                        sx={{ opacity: 0.85, lineHeight: 1.6 }}
+                                      >
+                                        ・{sourceLine(s)}
+                                      </Typography>
+                                    ))}
+                                  </Stack>
+                                </Box>
+                              ) : (
+                                <Typography
+                                  variant="body2"
+                                  sx={{ opacity: 0.75 }}
+                                >
+                                  由来情報がありません
+                                </Typography>
                               )}
                             </Stack>
 
-                            <TextField
-                              fullWidth
-                              multiline
-                              minRows={2}
-                              placeholder="例：特売で買う / なくてもOK / 代替：冷凍でも可"
-                              value={memoValue}
-                              onChange={(e) =>
-                                onChangeMemo(it.id, e.target.value)
-                              }
-                              sx={{ bgcolor: "#fff", borderRadius: 2 }}
-                            />
-
-                            <Stack
-                              direction="row"
-                              spacing={1}
-                              justifyContent="flex-end"
-                            >
-                              <Button
-                                onClick={() => saveMemo(it)}
-                                disabled={!memoChanged || memoBusy}
-                                variant="contained"
-                                sx={{
-                                  borderRadius: 999,
-                                  fontWeight: 950,
-                                  textTransform: "none",
-                                  px: 2.6,
-                                }}
+                            <Stack spacing={0.8} sx={{ mb: 0.6 }}>
+                              <Stack
+                                direction="row"
+                                spacing={0.8}
+                                alignItems="center"
                               >
-                                {memoBusy ? "保存中..." : "メモ保存"}
-                              </Button>
+                                <NotesIcon fontSize="small" />
+                                <Typography fontWeight={950}>メモ</Typography>
+                                {memoChanged && (
+                                  <Chip
+                                    size="small"
+                                    label="未保存"
+                                    color="warning"
+                                  />
+                                )}
+                              </Stack>
+
+                              <TextField
+                                fullWidth
+                                multiline
+                                minRows={2}
+                                placeholder="例：特売で買う / なくてもOK / 代替：冷凍でも可"
+                                value={memoValue}
+                                onChange={(e) =>
+                                  onChangeMemo(it.id, e.target.value)
+                                }
+                                sx={{ bgcolor: "#fff", borderRadius: 2 }}
+                              />
+
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                justifyContent="flex-end"
+                              >
+                                <Button
+                                  onClick={() => saveMemo(it)}
+                                  disabled={!memoChanged || memoBusy}
+                                  variant="contained"
+                                  sx={{
+                                    borderRadius: 999,
+                                    fontWeight: 950,
+                                    textTransform: "none",
+                                    px: 2.6,
+                                  }}
+                                >
+                                  {memoBusy ? "保存中..." : "メモ保存"}
+                                </Button>
+                              </Stack>
                             </Stack>
-                          </Stack>
 
-                          <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                            ※「在庫:
-                            ある」は初期で「買わない」になっています。必要ならチェックを外してね。
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  );
-                })}
-              </List>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                            <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                              ※「在庫:
+                              ある」は初期で「買わない」になっています。必要ならチェックを外してね。
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  })}
+                </List>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-      {/* 最下段ボタン */}
-      <Box sx={{ mt: 2 }}>
-        <Card sx={{ borderRadius: 3 }}>
-          <CardContent>
-            <Stack spacing={1}>
-              <Button
-                onClick={applyDraft}
-                variant="contained"
-                disabled={loading || applying || !session || uiFreezing}
-                sx={{
-                  borderRadius: 999,
-                  fontWeight: 950,
-                  px: 3,
-                  py: 1.3,
-                  textTransform: "none",
-                  boxShadow: 3,
-                }}
-                fullWidth
-              >
-                {applying ? (
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                    justifyContent="center"
-                  >
-                    <CircularProgress size={18} />
-                    <span>確定中...</span>
-                  </Stack>
-                ) : (
-                  bottomButtonLabel
-                )}
-              </Button>
+        {/* 最下段ボタン */}
+        <Box sx={{ mt: 2 }}>
+          <Card sx={{ borderRadius: 3 }}>
+            <CardContent>
+              <Stack spacing={1}>
+                <Button
+                  onClick={applyDraft}
+                  variant="contained"
+                  disabled={loading || applying || !session || uiFreezing}
+                  sx={{
+                    borderRadius: 999,
+                    fontWeight: 950,
+                    px: 3,
+                    py: 1.3,
+                    textTransform: "none",
+                    boxShadow: 3,
+                  }}
+                  fullWidth
+                >
+                  {applying ? (
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      justifyContent="center"
+                    >
+                      <CircularProgress size={18} />
+                      <span>確定中...</span>
+                    </Stack>
+                  ) : (
+                    bottomButtonLabel
+                  )}
+                </Button>
 
-              <Typography
-                variant="caption"
-                sx={{ opacity: 0.75, lineHeight: 1.6 }}
-              >
-                ※「買わない」ONのものは確定時に追加しません。0件でも確定して戻れます。
-              </Typography>
-            </Stack>
-          </CardContent>
-        </Card>
-      </Box>
-
-      {/* 自前Toast */}
-      {toast.open && (
-        <Box
-          sx={{
-            position: "fixed",
-            left: "50%",
-            bottom: 24,
-            transform: "translateX(-50%)",
-            width: "calc(100% - 32px)",
-            maxWidth: 520,
-            zIndex: 1400,
-          }}
-        >
-          <Alert
-            severity={toast.sev}
-            onClose={() => setToast((p) => ({ ...p, open: false }))}
-            sx={{ fontWeight: 900, boxShadow: 6, borderRadius: 2 }}
-          >
-            {toast.msg}
-          </Alert>
+                <Typography
+                  variant="caption"
+                  sx={{ opacity: 0.75, lineHeight: 1.6 }}
+                >
+                  ※「買わない」ONのものは確定時に追加しません。0件でも確定して戻れます。
+                </Typography>
+              </Stack>
+            </CardContent>
+          </Card>
         </Box>
-      )}
-    </Box>
+
+        {/* 自前Toast */}
+        {toast.open && (
+          <Box
+            sx={{
+              position: "fixed",
+              left: "50%",
+              bottom: 24,
+              transform: "translateX(-50%)",
+              width: "calc(100% - 32px)",
+              maxWidth: 520,
+              zIndex: 1400,
+            }}
+          >
+            <Alert
+              severity={toast.sev}
+              onClose={() => setToast((p) => ({ ...p, open: false }))}
+              sx={{ fontWeight: 900, boxShadow: 6, borderRadius: 2 }}
+            >
+              {toast.msg}
+            </Alert>
+          </Box>
+        )}
+      </Box>
+    </AppLayout>
   );
 }
