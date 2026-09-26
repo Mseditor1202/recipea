@@ -1,3 +1,4 @@
+import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
@@ -106,8 +107,8 @@ export default function RecipeDetailPage() {
   const backLabel = safeBack
     ? "レシピ一覧に戻る"
     : from === "home"
-    ? "ホームに戻る"
-    : "レシピ一覧に戻る";
+      ? "ホームに戻る"
+      : "レシピ一覧に戻る";
 
   const [recipe, setRecipe] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -187,176 +188,178 @@ export default function RecipeDetailPage() {
   const servings = recipe.servings;
 
   return (
-    <Box sx={{ maxWidth: 800, mx: "auto", mt: 4, px: 2 }}>
-      <Button onClick={() => router.push(backHref)} sx={{ mb: 2 }}>
-        ← {backLabel}
-      </Button>
+    <AppLayout title="レシピ詳細" activeNav="recipes">
+      <Box sx={{ maxWidth: 800, mx: "auto", mt: 4, px: 2 }}>
+        <Button onClick={() => router.push(backHref)} sx={{ mb: 2 }}>
+          ← {backLabel}
+        </Button>
 
-      <Card>
-        {/* ▼ 動画があれば動画を最上部に、なければアイキャッチ画像 */}
-        {embedUrl ? (
+        <Card>
+          {/* ▼ 動画があれば動画を最上部に、なければアイキャッチ画像 */}
+          {embedUrl ? (
+            <Box
+              sx={{
+                position: "relative",
+                pt: "56.25%", // 16:9
+                backgroundColor: "#000",
+              }}
+            >
+              <Box
+                component="iframe"
+                src={embedUrl}
+                sx={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  border: 0,
+                }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </Box>
+          ) : (
+            <RecipeImage
+              imageUrl={recipe.imageUrl}
+              title={recipe.recipeName}
+              height={260}
+            />
+          )}
+
+          <CardContent>
+            {/* タイトル */}
+            <Typography variant="h4" gutterBottom>
+              {recipe.recipeName || "タイトル未設定"}
+            </Typography>
+
+            {/* カロリー & 調理時間 & カテゴリー */}
+            <Stack direction="row" spacing={1} mb={2}>
+              {recipe.cookingTime != null && (
+                <Chip
+                  label={`🕒 調理時間: ${recipe.cookingTime} 分`}
+                  size="small"
+                />
+              )}
+              {recipe.calories != null && (
+                <Chip
+                  label={`🔥 カロリー: ${recipe.calories} kcal`}
+                  size="small"
+                />
+              )}
+              {recipe.category && (
+                <Chip
+                  label={`📂 ${categoryLabels[recipe.category] || "未分類"}`}
+                  size="small"
+                  sx={{ mb: 1 }}
+                />
+              )}
+            </Stack>
+
+            <Divider sx={{ my: 2 }} />
+
+            {/* 材料ブロック（具材 / 調味料） */}
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="h6" gutterBottom>
+                {servings ? `材料（${servings}人分）` : "材料"}
+              </Typography>
+
+              {/* オレンジっぽいライン風（色はお好みで） */}
+              <Divider sx={{ mb: 1, borderBottomWidth: 2 }} />
+
+              {/* 具材 */}
+              <Typography
+                variant="subtitle2"
+                sx={{ mt: 1.5, mb: 0.5, fontWeight: "bold" }}
+              >
+                ■ 具材
+              </Typography>
+              {ingredients.length > 0 ? (
+                <Box sx={{ mb: 2 }}>
+                  {ingredients.map((ing, index) => (
+                    <IngredientRow
+                      key={`ing-${index}`}
+                      name={ing.name}
+                      quantity={ing.quantity}
+                    />
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  なし
+                </Typography>
+              )}
+
+              {/* 調味料 */}
+              <Typography
+                variant="subtitle2"
+                sx={{ mt: 2, mb: 0.5, fontWeight: "bold" }}
+              >
+                ■ 調味料
+              </Typography>
+              {seasonings.length > 0 ? (
+                <Box sx={{ mb: 2 }}>
+                  {seasonings.map((s, index) => (
+                    <IngredientRow
+                      key={`sea-${index}`}
+                      name={s.name}
+                      quantity={s.quantity}
+                    />
+                  ))}
+                </Box>
+              ) : (
+                // 🔽 フィールドが無い or 配列が空のときは「なし」
+                <Typography variant="body2" color="text.secondary">
+                  なし
+                </Typography>
+              )}
+            </Box>
+
+            {/* 作成日時（あれば） */}
+            {recipe.createdAt && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 2 }}
+              >
+                作成日:{" "}
+                {recipe.createdAt.toDate
+                  ? recipe.createdAt.toDate().toLocaleString()
+                  : String(recipe.createdAt)}
+              </Typography>
+            )}
+          </CardContent>
+
+          {/* フッターアクション */}
           <Box
             sx={{
-              position: "relative",
-              pt: "56.25%", // 16:9
-              backgroundColor: "#000",
+              display: "flex",
+              justifyContent: "space-between",
+              px: 2,
+              pb: 2,
             }}
           >
-            <Box
-              component="iframe"
-              src={embedUrl}
-              sx={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                border: 0,
-              }}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            />
-          </Box>
-        ) : (
-          <RecipeImage
-            imageUrl={recipe.imageUrl}
-            title={recipe.recipeName}
-            height={260}
-          />
-        )}
-
-        <CardContent>
-          {/* タイトル */}
-          <Typography variant="h4" gutterBottom>
-            {recipe.recipeName || "タイトル未設定"}
-          </Typography>
-
-          {/* カロリー & 調理時間 & カテゴリー */}
-          <Stack direction="row" spacing={1} mb={2}>
-            {recipe.cookingTime != null && (
-              <Chip
-                label={`🕒 調理時間: ${recipe.cookingTime} 分`}
-                size="small"
-              />
-            )}
-            {recipe.calories != null && (
-              <Chip
-                label={`🔥 カロリー: ${recipe.calories} kcal`}
-                size="small"
-              />
-            )}
-            {recipe.category && (
-              <Chip
-                label={`📂 ${categoryLabels[recipe.category] || "未分類"}`}
-                size="small"
-                sx={{ mb: 1 }}
-              />
-            )}
-          </Stack>
-
-          <Divider sx={{ my: 2 }} />
-
-          {/* 材料ブロック（具材 / 調味料） */}
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="h6" gutterBottom>
-              {servings ? `材料（${servings}人分）` : "材料"}
-            </Typography>
-
-            {/* オレンジっぽいライン風（色はお好みで） */}
-            <Divider sx={{ mb: 1, borderBottomWidth: 2 }} />
-
-            {/* 具材 */}
-            <Typography
-              variant="subtitle2"
-              sx={{ mt: 1.5, mb: 0.5, fontWeight: "bold" }}
-            >
-              ■ 具材
-            </Typography>
-            {ingredients.length > 0 ? (
-              <Box sx={{ mb: 2 }}>
-                {ingredients.map((ing, index) => (
-                  <IngredientRow
-                    key={`ing-${index}`}
-                    name={ing.name}
-                    quantity={ing.quantity}
-                  />
-                ))}
-              </Box>
+            {isMine ? (
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="outlined"
+                  onClick={() => router.push(`/recipes/edit/${recipe.id}`)}
+                >
+                  編集
+                </Button>
+                <Button variant="outlined" color="error" onClick={handleDelete}>
+                  削除
+                </Button>
+              </Stack>
             ) : (
-              <Typography variant="body2" color="text.secondary">
-                なし
+              <Typography variant="caption" sx={{ ml: 1 }}>
+                閲覧のみ
               </Typography>
             )}
-
-            {/* 調味料 */}
-            <Typography
-              variant="subtitle2"
-              sx={{ mt: 2, mb: 0.5, fontWeight: "bold" }}
-            >
-              ■ 調味料
-            </Typography>
-            {seasonings.length > 0 ? (
-              <Box sx={{ mb: 2 }}>
-                {seasonings.map((s, index) => (
-                  <IngredientRow
-                    key={`sea-${index}`}
-                    name={s.name}
-                    quantity={s.quantity}
-                  />
-                ))}
-              </Box>
-            ) : (
-              // 🔽 フィールドが無い or 配列が空のときは「なし」
-              <Typography variant="body2" color="text.secondary">
-                なし
-              </Typography>
-            )}
+            <Box />
           </Box>
-
-          {/* 作成日時（あれば） */}
-          {recipe.createdAt && (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: "block", mt: 2 }}
-            >
-              作成日:{" "}
-              {recipe.createdAt.toDate
-                ? recipe.createdAt.toDate().toLocaleString()
-                : String(recipe.createdAt)}
-            </Typography>
-          )}
-        </CardContent>
-
-        {/* フッターアクション */}
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            px: 2,
-            pb: 2,
-          }}
-        >
-          {isMine ? (
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="outlined"
-                onClick={() => router.push(`/recipes/edit/${recipe.id}`)}
-              >
-                編集
-              </Button>
-              <Button variant="outlined" color="error" onClick={handleDelete}>
-                削除
-              </Button>
-            </Stack>
-          ) : (
-            <Typography variant="caption" sx={{ ml: 1 }}>
-              閲覧のみ
-            </Typography>
-          )}
-          <Box />
-        </Box>
-      </Card>
-    </Box>
+        </Card>
+      </Box>
+    </AppLayout>
   );
 }
