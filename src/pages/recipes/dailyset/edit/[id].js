@@ -1,3 +1,4 @@
+import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -96,62 +97,64 @@ export default function EditDailySet() {
   }
 
   return (
-    <Box sx={{ maxWidth: 550, mx: "auto", mt: 4, px: 2 }}>
-      <Typography variant="h5" mb={2}>
-        ✏️ 1日レシピセットを編集
-      </Typography>
+    <AppLayout title="献立レシピセット編集" activeNav="meal">
+      <Box sx={{ maxWidth: 550, mx: "auto", mt: 4, px: 2 }}>
+        <Typography variant="h5" mb={2}>
+          ✏️ 1日レシピセットを編集
+        </Typography>
 
-      <Card sx={{ p: 3 }}>
-        <TextField
-          label="セット名"
-          fullWidth
-          value={setName}
-          onChange={(e) => setSetName(e.target.value)}
-          sx={{ mb: 3 }}
-        />
+        <Card sx={{ p: 3 }}>
+          <TextField
+            label="セット名"
+            fullWidth
+            value={setName}
+            onChange={(e) => setSetName(e.target.value)}
+            sx={{ mb: 3 }}
+          />
 
-        <Divider sx={{ mb: 3 }} />
+          <Divider sx={{ mb: 3 }} />
 
-        <Stack spacing={2}>
-          {[
-            { label: "朝食レシピ", value: breakfast, setter: setBreakfast },
-            { label: "昼食レシピ", value: lunch, setter: setLunch },
-            { label: "夕食レシピ", value: dinner, setter: setDinner },
-          ].map((item, idx) => (
-            <TextField
-              key={idx}
-              select
-              label={item.label}
-              value={item.value}
-              onChange={(e) => item.setter(e.target.value)}
-              fullWidth
-            >
-              {recipes.map((r) => (
-                <MenuItem key={r.id} value={r.id}>
-                  {r.recipeName}
-                </MenuItem>
-              ))}
-            </TextField>
-          ))}
-        </Stack>
+          <Stack spacing={2}>
+            {[
+              { label: "朝食レシピ", value: breakfast, setter: setBreakfast },
+              { label: "昼食レシピ", value: lunch, setter: setLunch },
+              { label: "夕食レシピ", value: dinner, setter: setDinner },
+            ].map((item, idx) => (
+              <TextField
+                key={idx}
+                select
+                label={item.label}
+                value={item.value}
+                onChange={(e) => item.setter(e.target.value)}
+                fullWidth
+              >
+                {recipes.map((r) => (
+                  <MenuItem key={r.id} value={r.id}>
+                    {r.recipeName}
+                  </MenuItem>
+                ))}
+              </TextField>
+            ))}
+          </Stack>
 
-        <Button
-          variant="contained"
-          fullWidth
-          sx={{ mt: 3, py: 1.2 }}
-          onClick={handleUpdate}
-        >
-          更新する
-        </Button>
+          <Button
+            variant="contained"
+            fullWidth
+            sx={{ mt: 3, py: 1.2 }}
+            onClick={handleUpdate}
+          >
+            更新する
+          </Button>
 
-        <Button
-          sx={{ mt: 1 }}
-          fullWidth
-          onClick={() => router.push("/recipes/dailyset")}
-        >
-          戻る
-        </Button>
-      </Card>
-    </Box>
+          <Button
+            sx={{ mt: 1 }}
+            fullWidth
+            onClick={() => router.push("/recipes/dailyset")}
+          >
+            戻る
+          </Button>
+        </Card>
+      </Box>
+    </AppLayout>
   );
 }

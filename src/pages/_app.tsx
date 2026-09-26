@@ -33,7 +33,8 @@ export default function App({ Component, pageProps }: AppProps) {
     router.pathname === "/fridge" ||
     router.pathname === "/recipes/dailyset" ||
     router.pathname === "/recipes/dailyset/[id]" ||
-    router.pathname === "/recipes/dailyset/create";
+    router.pathname === "/recipes/dailyset/create" ||
+    router.pathname === "/recipes/dailyset/edit/[id]";
 
   // LPと新Layoutページでは旧Navbarを表示しない
   const hideLegacyNavbar = isLp || usesAppLayout;
