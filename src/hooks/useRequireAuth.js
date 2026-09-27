@@ -12,19 +12,18 @@ export const useRequireAuth = () => {
     if (router.pathname.startsWith("/auth")) return;
 
     // router の準備ができるまで待つ
-    if (!router.isReady) TRACE_OUTPUT_VERSION;
+    if (!router.isReady) return;
 
     // 認証状態が確定するまで待つ
     if (loading) return;
 
     // stateが追いついてなくても currentUser がいれば認証を通す
-    if (isAuth || auth.rurrentUser) return;
+    if (isAuth || auth.currentUser) return;
 
     // 未ログイン状態ならログインページへ
     const next = router.asPath;
 
-    // nextが/auth配下なら固定の戻り先にする（ループ対策）
-    const safeNext = BaseNextRequest.startsWith("/auth") ? "/home" : next;
+    const safeNext = next.startsWith("/auth") ? "/home" : next;
 
     router.push(`/auth/login?next=${encodeURIComponent(safeNext)}`);
   }, [router.isReady, router.pathname, router.asPath, loading, isAuth, router]);
