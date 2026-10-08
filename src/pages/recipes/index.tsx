@@ -1,4 +1,7 @@
 // src/pages/recipes/index.tsx
+import ListSkeleton from "@/components/states/ListSkeleton";
+import EmptyState from "@/components/states/EmptyState";
+import ErrorState from "@/components/states/ErrorState";
 import AppLayout from "@/components/layout/AppLayout";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { SyntheticEvent } from "react";
@@ -146,6 +149,7 @@ export default function RecipesPage() {
   ============================== */
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const [searchText, setSearchText] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -177,34 +181,45 @@ export default function RecipesPage() {
   /* ===============================
      取得
   ============================== */
-  useEffect(() => {
-    // ログイン確定前は何もしない
+  const loadRecipes = useCallback(async () => {
     if (currentUserId === null) return;
 
-    const run = async () => {
-      try {
-        const list = await listRecipes();
-        console.log("currentUserId", currentUserId);
-        console.log("list[0]", list[0]);
-        setRecipes(list);
+    setLoading(true);
+    setLoadError(false);
 
-        // memoDrafts 初期化
-        setMemoDrafts((prev) => {
-          const next = { ...prev };
-          list.forEach((r) => {
-            if (next[r.id] === undefined) next[r.id] = r.memo ?? "";
-          });
-          return next;
+    try {
+      const list = await listRecipes();
+
+      console.log("currentUserId", currentUserId);
+      console.log("list[0]", list[0]);
+
+      setRecipes(list);
+
+      setMemoDrafts((prev) => {
+        const next = { ...prev };
+
+        list.forEach((r) => {
+          if (next[r.id] === undefined) {
+            next[r.id] = r.memo ?? "";
+          }
         });
-      } catch (e) {
-        console.error(e);
-        openToast("error", "レシピ一覧の取得に失敗しました");
-      } finally {
-        setLoading(false);
-      }
-    };
-    run();
+
+        return next;
+      });
+    } catch (e) {
+      console.error(e);
+
+      setLoadError(true);
+
+      openToast("error", "レシピ一覧の取得に失敗しました");
+    } finally {
+      setLoading(false);
+    }
   }, [currentUserId, openToast]);
+
+  useEffect(() => {
+    void loadRecipes();
+  }, [loadRecipes]);
 
   /* ===============================
      全タグ一覧
@@ -493,193 +508,218 @@ export default function RecipesPage() {
         <Divider sx={{ mb: 3 }} />
 
         {/* 一覧 */}
-        <Grid container spacing={3}>
-          {filtered.map((recipe) => {
-            const ownerId = recipe.userId;
-            if (recipe.id === filtered[0]?.id) {
-              console.log("debug recipe", { ownerId, currentUserId, recipe });
-            }
-            const canEdit = !!ownerId && ownerId === currentUserId;
+        {loading ? (
+          <ListSkeleton count={6} />
+        ) : loadError ? (
+          <ErrorState
+            title="レシピを読み込めませんでした"
+            description="通信状況を確認して、もう一度お試しください。"
+            onRetry={loadRecipes}
+            onBack={() => router.back()}
+          />
+        ) : recipes.length === 0 ? (
+          <EmptyState
+            imageSrc="/images/features/recipe-book-pot.png"
+            imageAlt="レシピブックを持つ鍋のマスコット"
+            title="まだレシピがありません"
+            description="お気に入りのレシピを登録してみましょう。"
+            primaryLabel="レシピを追加する"
+            onPrimaryClick={() => router.push("/recipes/createpost")}
+          />
+        ) : filtered.length === 0 ? (
+          <Typography color="text.secondary" mt={3}>
+            条件に合うレシピがありません
+          </Typography>
+        ) : (
+          <Grid container spacing={3}>
+            {filtered.map((recipe) => {
+              const ownerId = recipe.userId;
+              if (recipe.id === filtered[0]?.id) {
+                console.log("debug recipe", { ownerId, currentUserId, recipe });
+              }
+              const canEdit = !!ownerId && ownerId === currentUserId;
 
-            const dirty = isDirty(recipe);
-            const saving = !!savingById[recipe.id];
-            const draft = memoDrafts[recipe.id] ?? recipe.memo ?? "";
+              const dirty = isDirty(recipe);
+              const saving = !!savingById[recipe.id];
+              const draft = memoDrafts[recipe.id] ?? recipe.memo ?? "";
 
-            return (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={recipe.id}>
-                <Card
-                  sx={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  <RecipeImage
-                    imageUrl={recipe.imageUrl}
-                    title={recipe.title}
-                    height={180}
-                    sx={{}}
-                  />
+              return (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={recipe.id}>
+                  <Card
+                    sx={{
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                    }}
+                  >
+                    <RecipeImage
+                      imageUrl={recipe.imageUrl}
+                      title={recipe.title}
+                      height={180}
+                      sx={{}}
+                    />
 
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Typography fontWeight={900}>{recipe.title}</Typography>
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      <Typography fontWeight={900}>{recipe.title}</Typography>
 
-                    <Stack direction="row" spacing={0.5} mt={1} flexWrap="wrap">
-                      {(recipe.tags ?? []).map((t) => (
-                        <Chip key={t} size="small" label={`#${t}`} />
-                      ))}
-                    </Stack>
-                  </CardContent>
+                      <Stack
+                        direction="row"
+                        spacing={0.5}
+                        mt={1}
+                        flexWrap="wrap"
+                      >
+                        {(recipe.tags ?? []).map((t) => (
+                          <Chip key={t} size="small" label={`#${t}`} />
+                        ))}
+                      </Stack>
+                    </CardContent>
 
-                  <CardActions sx={{ px: 2, pb: 2, gap: 1, flexWrap: "wrap" }}>
-                    {/*  選択モード：詳細確認 + セット */}
-                    {selectMode ? (
-                      <>
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          sx={{
-                            borderRadius: 999,
-                            textTransform: "none",
-                            fontWeight: 900,
-                          }}
-                          onClick={() => {
-                            const back = router.asPath;
-                            router.push(
-                              `/recipes/${recipe.id}?back=${encodeURIComponent(
-                                back,
-                              )}`,
-                            );
-                          }}
-                        >
-                          詳細確認
-                        </Button>
+                    <CardActions
+                      sx={{ px: 2, pb: 2, gap: 1, flexWrap: "wrap" }}
+                    >
+                      {/*  選択モード：詳細確認 + セット */}
+                      {selectMode ? (
+                        <>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            sx={{
+                              borderRadius: 999,
+                              textTransform: "none",
+                              fontWeight: 900,
+                            }}
+                            onClick={() => {
+                              const back = router.asPath;
+                              router.push(
+                                `/recipes/${recipe.id}?back=${encodeURIComponent(
+                                  back,
+                                )}`,
+                              );
+                            }}
+                          >
+                            詳細確認
+                          </Button>
 
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          sx={{
-                            borderRadius: 999,
-                            textTransform: "none",
-                            fontWeight: 900,
-                          }}
-                          disabled={!canSelect || selectSaving}
-                          onClick={() => handleSelectRecipe(recipe.id)}
-                        >
-                          {selectSaving
-                            ? "セット中…"
-                            : "このレシピをセットする"}
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          sx={{ borderRadius: 999 }}
-                          onClick={() => router.push(`/recipes/${recipe.id}`)}
-                        >
-                          詳細
-                        </Button>
-
-                        {canEdit && (
                           <Button
                             fullWidth
                             variant="contained"
-                            sx={{ borderRadius: 999 }}
-                            onClick={() =>
-                              router.push(`/recipes/edit/${recipe.id}`)
-                            }
+                            sx={{
+                              borderRadius: 999,
+                              textTransform: "none",
+                              fontWeight: 900,
+                            }}
+                            disabled={!canSelect || selectSaving}
+                            onClick={() => handleSelectRecipe(recipe.id)}
                           >
-                            編集
+                            {selectSaving
+                              ? "セット中…"
+                              : "このレシピをセットする"}
                           </Button>
-                        )}
-                      </>
-                    )}
-                  </CardActions>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            sx={{ borderRadius: 999 }}
+                            onClick={() => router.push(`/recipes/${recipe.id}`)}
+                          >
+                            詳細
+                          </Button>
 
-                  {/*  Memo（通常時のみ表示） */}
-                  {!selectMode && (
-                    <Box
-                      sx={{
-                        px: 2,
-                        pb: 2,
-                        pt: 1.25,
-                        borderTop: "1px solid",
-                        borderColor: "divider",
-                      }}
-                    >
-                      <Stack
-                        direction="row"
-                        alignItems="center"
-                        justifyContent="space-between"
-                        sx={{ mb: 0.5 }}
-                      >
-                        <Typography variant="caption" color="text.secondary">
-                          メモ
-                        </Typography>
-
-                        <Button
-                          size="small"
-                          variant={dirty ? "contained" : "outlined"}
-                          startIcon={<SaveIcon />}
-                          disabled={!canEdit || !dirty || saving}
-                          onClick={() => handleSaveMemo(recipe)}
-                          sx={{
-                            textTransform: "none",
-                            borderRadius: 999,
-                            minWidth: 110,
-                          }}
-                        >
-                          {saving ? "保存中…" : "保存"}
-                        </Button>
-                      </Stack>
-
-                      <TextField
-                        value={draft}
-                        onChange={(e) =>
-                          handleMemoChange(recipe.id, e.target.value)
-                        }
-                        placeholder={
-                          canEdit
-                            ? "例）辛めが好き / アレンジ案：〇〇を入れると◎"
-                            : "（編集は作成者のみ）"
-                        }
-                        size="small"
-                        fullWidth
-                        multiline
-                        minRows={2}
-                        maxRows={6}
-                        disabled={!canEdit}
-                        sx={{
-                          "& .MuiOutlinedInput-root": {
-                            borderRadius: 2,
-                            bgcolor: "background.paper",
-                          },
-                        }}
-                      />
-
-                      {canEdit && dirty && (
-                        <Typography
-                          variant="caption"
-                          color="warning.main"
-                          sx={{ display: "block", mt: 0.75 }}
-                        >
-                          未保存の変更があります
-                        </Typography>
+                          {canEdit && (
+                            <Button
+                              fullWidth
+                              variant="contained"
+                              sx={{ borderRadius: 999 }}
+                              onClick={() =>
+                                router.push(`/recipes/edit/${recipe.id}`)
+                              }
+                            >
+                              編集
+                            </Button>
+                          )}
+                        </>
                       )}
-                    </Box>
-                  )}
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
+                    </CardActions>
 
-        {!loading && filtered.length === 0 && (
-          <Typography color="text.secondary" mt={3}>
-            該当するレシピがありません
-          </Typography>
+                    {/*  Memo（通常時のみ表示） */}
+                    {!selectMode && (
+                      <Box
+                        sx={{
+                          px: 2,
+                          pb: 2,
+                          pt: 1.25,
+                          borderTop: "1px solid",
+                          borderColor: "divider",
+                        }}
+                      >
+                        <Stack
+                          direction="row"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          sx={{ mb: 0.5 }}
+                        >
+                          <Typography variant="caption" color="text.secondary">
+                            メモ
+                          </Typography>
+
+                          <Button
+                            size="small"
+                            variant={dirty ? "contained" : "outlined"}
+                            startIcon={<SaveIcon />}
+                            disabled={!canEdit || !dirty || saving}
+                            onClick={() => handleSaveMemo(recipe)}
+                            sx={{
+                              textTransform: "none",
+                              borderRadius: 999,
+                              minWidth: 110,
+                            }}
+                          >
+                            {saving ? "保存中…" : "保存"}
+                          </Button>
+                        </Stack>
+
+                        <TextField
+                          value={draft}
+                          onChange={(e) =>
+                            handleMemoChange(recipe.id, e.target.value)
+                          }
+                          placeholder={
+                            canEdit
+                              ? "例）辛めが好き / アレンジ案：〇〇を入れると◎"
+                              : "（編集は作成者のみ）"
+                          }
+                          size="small"
+                          fullWidth
+                          multiline
+                          minRows={2}
+                          maxRows={6}
+                          disabled={!canEdit}
+                          sx={{
+                            "& .MuiOutlinedInput-root": {
+                              borderRadius: 2,
+                              bgcolor: "background.paper",
+                            },
+                          }}
+                        />
+
+                        {canEdit && dirty && (
+                          <Typography
+                            variant="caption"
+                            color="warning.main"
+                            sx={{ display: "block", mt: 0.75 }}
+                          >
+                            未保存の変更があります
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
         )}
 
         {/*  Snackbar Toast */}
