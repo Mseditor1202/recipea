@@ -1,6 +1,9 @@
 // src/pages/fridge/index.js
 import AppLayout from "@/components/layout/AppLayout";
-import { useEffect, useMemo, useState } from "react";
+import ListSkeleton from "@/components/states/ListSkeleton";
+import EmptyState from "@/components/states/EmptyState";
+import ErrorState from "@/components/states/ErrorState";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Typography,
@@ -18,7 +21,6 @@ import {
   Divider,
   Card,
   CardContent,
-  Skeleton,
   Switch,
   Radio,
 } from "@mui/material";
@@ -140,6 +142,7 @@ export default function FridgePage() {
   const [configs, setConfigs] = useState(null);
   const [lots, setLots] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // add dialog
   const [openAdd, setOpenAdd] = useState(false);
@@ -163,19 +166,29 @@ export default function FridgePage() {
     const unsub = auth.onAuthStateChanged((u) => setUser(u));
     return () => unsub();
   }, []);
-
-  useEffect(() => {
+  const loadFridgeData = useCallback(async () => {
     if (!user) return;
-    (async () => {
-      setLoading(true);
+
+    setLoading(true);
+    setLoadError(false);
+
+    try {
       const c = await getAppConfigs();
       setConfigs(c);
 
       const l = await getFridgeLotsByUser(user.uid);
       setLots(l);
+    } catch (e) {
+      console.error(e);
+      setLoadError(true);
+    } finally {
       setLoading(false);
-    })();
+    }
   }, [user]);
+
+  useEffect(() => {
+    void loadFridgeData();
+  }, [loadFridgeData]);
 
   const refreshLots = async () => {
     if (!user) return;
@@ -356,30 +369,22 @@ export default function FridgePage() {
         </Stack>
 
         {loading ? (
-          <Stack spacing={1.2}>
-            <Skeleton variant="rounded" height={78} />
-            <Skeleton variant="rounded" height={78} />
-            <Skeleton variant="rounded" height={78} />
-          </Stack>
+          <ListSkeleton count={3} />
+        ) : loadError ? (
+          <ErrorState
+            title="冷蔵庫の情報を読み込めませんでした"
+            description="通信状況を確認して、もう一度お試しください。"
+            onRetry={loadFridgeData}
+          />
         ) : grouped.length === 0 ? (
-          <Card sx={{ borderRadius: 3 }}>
-            <CardContent>
-              <Typography fontWeight={900}>まだ食材がありません</Typography>
-              <Typography variant="body2" sx={{ opacity: 0.75, mt: 0.5 }}>
-                下の「＋ 食材を追加」からすぐ追加できます。
-              </Typography>
-
-              <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
-                <Button
-                  onClick={() => setOpenAdd(true)}
-                  variant="contained"
-                  sx={addButtonSx}
-                >
-                  ＋ 食材を追加
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
+          <EmptyState
+            imageSrc="/images/features/fridge-check-pot.png"
+            imageAlt="冷蔵庫を確認する鍋のマスコット"
+            title="まだ食材がありません"
+            description="食材を追加して、冷蔵庫の中を分かりやすくしてみましょう。"
+            primaryLabel="食材を追加する"
+            onPrimaryClick={() => setOpenAdd(true)}
+          />
         ) : (
           <Box>
             <Stack spacing={1.2}>
