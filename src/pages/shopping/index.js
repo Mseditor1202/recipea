@@ -1,4 +1,7 @@
 // pages/shopping/index.js
+import ListSkeleton from "@/components/states/ListSkeleton";
+import EmptyState from "@/components/states/EmptyState";
+import ErrorState from "@/components/states/ErrorState";
 import AppLayout from "@/components/layout/AppLayout";
 import React, {
   useEffect,
@@ -26,7 +29,6 @@ import {
   ListItemText,
   Checkbox,
   IconButton,
-  Skeleton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -99,6 +101,7 @@ export default function ShoppingPage() {
   const [user, setUser] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [items, setItems] = useState([]);
 
   const [name, setName] = useState("");
@@ -172,7 +175,9 @@ export default function ShoppingPage() {
 
   const refresh = useCallback(async () => {
     if (!user) return;
+
     setLoading(true);
+    setLoadError(false);
 
     try {
       const list = await getShoppingItemsByUser(user.uid);
@@ -181,6 +186,9 @@ export default function ShoppingPage() {
       const md = {};
       list.forEach((it) => (md[it.id] = it.memo || ""));
       setMemoDraft(md);
+    } catch (e) {
+      console.error(e);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -639,15 +647,28 @@ export default function ShoppingPage() {
             <Divider sx={{ mb: 1 }} />
 
             {loading ? (
-              <Stack spacing={1}>
-                <Skeleton variant="rounded" height={52} />
-                <Skeleton variant="rounded" height={52} />
-                <Skeleton variant="rounded" height={52} />
-              </Stack>
+              <ListSkeleton count={3} />
+            ) : loadError ? (
+              <ErrorState
+                title="買い物リストを読み込めませんでした"
+                description="通信状況を確認して、もう一度お試しください。"
+                onRetry={refresh}
+              />
             ) : activeItems.length === 0 ? (
-              <Typography variant="body2" sx={{ opacity: 0.75 }}>
-                まだ何もありません。下の「手動で追加」から追加できます。
-              </Typography>
+              <EmptyState
+                imageSrc="/images/features/shopping-pot.png"
+                imageAlt="買い物リストを確認する鍋のマスコット"
+                title="まだ買うものがありません"
+                description="献立からまとめて作るか、手動で追加できます。"
+                primaryLabel="献立から作る"
+                onPrimaryClick={() => setGenOpen(true)}
+                secondaryLabel="手動で追加する"
+                onSecondaryClick={() => {
+                  document
+                    .getElementById("shopping-manual-add")
+                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }}
+              />
             ) : (
               <List disablePadding>
                 {activeItems.map((it) => {
@@ -970,7 +991,7 @@ export default function ShoppingPage() {
         </Card>
 
         {/* 手動で追加 */}
-        <Card sx={{ borderRadius: 3, mb: 2 }}>
+        <Card id="shopping-manual-add" sx={{ borderRadius: 3, mb: 2 }}>
           <CardContent>
             <Typography fontWeight={950} sx={{ mb: 1 }}>
               手動で追加
