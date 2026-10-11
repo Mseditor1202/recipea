@@ -47,7 +47,7 @@ export default function BottomNavigation({ activeNav }: BottomNavigationProps) {
         break;
 
       case "mypage":
-        // マイページ実装後にルート変更
+        router.push("/mypage");
         break;
     }
   };

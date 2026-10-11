@@ -12,7 +12,7 @@ export default function Logout() {
     signOut(auth).then(() => {
       localStorage.setItem("isAuth", "false");
       setIsAuth(false);
-      router.push("/home");
+      router.replace("/");
     });
   };
 
