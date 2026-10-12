@@ -1,3 +1,4 @@
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Box } from "@mui/material";
 import type { ReactNode } from "react";
 import PageHeader from "./PageHeader";
@@ -14,6 +15,10 @@ export default function AppLayout({
   title,
   activeNav,
 }: AppLayoutProps) {
+  const { loading } = useRequireAuth();
+  if (loading) {
+    return null;
+  }
   return (
     <Box
       sx={{
