@@ -1,3 +1,5 @@
+import { useAuth } from "@/hooks/useAuth";
+import { query, where } from "firebase/firestore";
 import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
@@ -28,8 +30,11 @@ const SLOT_LABEL = {
   sideDish: "副菜",
   soup: "汁物",
 };
+const ALLOWED_MEALS = ["breakfast", "lunch", "dinner"];
+const ALLOWED_SLOTS = ["staple", "mainDish", "sideDish", "soup"];
 
 export default function EditDailySet() {
+  const { user } = useAuth();
   const router = useRouter();
   const { id, meal, slot, recipeId } = router.query;
 
@@ -52,10 +57,12 @@ export default function EditDailySet() {
 
   // ▼ レシピ + dailySet 読み込み
   useEffect(() => {
-    if (!dailySetId) return;
+    if (!id || !user) return;
 
     const fetchData = async () => {
-      const recipeSnap = await getDocs(collection(db, "recipes"));
+      const recipeSnap = await getDocs(
+        query(collection(db, "recipes"), where("userId", "==", user.uid)),
+      );
       setRecipes(recipeSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
 
       const snap = await getDoc(doc(db, "dailySets", dailySetId));
@@ -66,6 +73,11 @@ export default function EditDailySet() {
       }
 
       const data = snap.data();
+      if (data.userId !== user.uid) {
+        alert("このセットを編集する権限がありません");
+        router.push("/recipes/dailyset");
+        return;
+      }
 
       setSetName(data.name || "");
       setDailyData({
@@ -82,7 +94,7 @@ export default function EditDailySet() {
     };
 
     fetchData();
-  }, [dailySetId]);
+  }, [id, user, router]);
 
   // ▼ recipeMap
   const recipeMap = useMemo(() => {
@@ -93,23 +105,51 @@ export default function EditDailySet() {
 
   // ▼ 選択後（recipeId がURLに来たら更新）
   useEffect(() => {
-    if (!recipeId || !slot) return;
+    if (
+      !recipeId ||
+      !slot ||
+      !dailySetId ||
+      !user ||
+      loading ||
+      !ALLOWED_MEALS.includes(meal) ||
+      !ALLOWED_SLOTS.includes(slot) ||
+      !recipeMap[recipeId]
+    ) {
+      return;
+    }
 
     const update = async () => {
       await updateDoc(doc(db, "dailySets", dailySetId), {
         [slot]: recipeId,
       });
 
-      // 更新後：slot を維持して戻す
       router.replace(
         `/recipes/dailyset/${dailySetId}?meal=${meal}&slot=${slot}`,
       );
     };
 
     update();
-  }, [recipeId, slot, meal]);
+  }, [recipeId, slot, meal, dailySetId, user, loading, router, recipeMap]);
 
   if (loading) return <Typography>読み込み中...</Typography>;
+  const isValidMeal = ALLOWED_MEALS.includes(meal);
+  const isValidSlot = ALLOWED_SLOTS.includes(slot);
+
+  if (!isValidMeal || !isValidSlot) {
+    return (
+      <AppLayout title="献立レシピセット詳細" activeNav="meal">
+        <Box sx={{ maxWidth: 700, mx: "auto", mt: 4 }}>
+          <Typography>URLの指定が正しくありません。</Typography>
+          <Button
+            sx={{ mt: 2 }}
+            onClick={() => router.push("/recipes/dailyset")}
+          >
+            献立レシピセット一覧へ戻る
+          </Button>
+        </Box>
+      </AppLayout>
+    );
+  }
 
   // ▼ 今のスロットのレシピID
   const currentRecipeId = dailyData[slot];
