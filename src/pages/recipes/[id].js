@@ -176,7 +176,7 @@ export default function RecipeDetailPage() {
   // 「動画があるかどうか」を判定
   const embedUrl = getEmbedUrl(recipe.videoUrl);
 
-  const isMine = recipe.authorId && recipe.authorId === auth.currentUser?.uid;
+  const isMine = recipe.userId && recipe.userId === auth.currentUser?.uid;
 
   //  具材と調味料をそれぞれ配列として扱う（なければ []）
   const ingredients = Array.isArray(recipe.ingredients)

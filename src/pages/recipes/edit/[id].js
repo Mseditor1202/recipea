@@ -104,7 +104,7 @@ export default function EditRecipe() {
         const data = snap.data();
 
         // 権限チェック
-        if (data.authorId !== user.uid) {
+        if (data.userId !== user.uid) {
           alert("このレシピを編集する権限がありません");
           router.push("/recipes");
           return;
