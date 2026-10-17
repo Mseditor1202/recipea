@@ -38,12 +38,6 @@ import { db } from "@/lib/firebase";
 import RecipeImage from "@/components/recipes/RecipeImage";
 
 /** ===============================
- *  ズボラ用セットの固定ドキュメントID
- * - home側が参照しやすいよう固定にする
- =============================== */
-const ZUBORA_DOC_ID = "zuboraTemplate";
-
-/** ===============================
  * meta
  =============================== */
 const MEALS = [
@@ -410,7 +404,6 @@ export default function ZuboraTemplatePage() {
             >
               <CardContent>
                 <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                  <Chip size="small" label={`docId: ${ZUBORA_DOC_ID}`} />
                   <Chip
                     size="small"
                     label={`recipes: ${recipeList.length}件`}
