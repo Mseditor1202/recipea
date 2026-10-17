@@ -119,7 +119,24 @@ export default function EditDailySet() {
     }
 
     const update = async () => {
-      await updateDoc(doc(db, "dailySets", dailySetId), {
+      const dailySetRef = doc(db, "dailySets", dailySetId);
+      const snap = await getDoc(dailySetRef);
+
+      if (!snap.exists()) {
+        alert("献立レシピセットが見つかりません");
+        router.push("/recipes/dailyset");
+        return;
+      }
+
+      const data = snap.data();
+
+      if (data.userId !== user.uid) {
+        alert("このセットを編集する権限がありません");
+        router.push("/recipes/dailyset");
+        return;
+      }
+
+      await updateDoc(dailySetRef, {
         [slot]: recipeId,
       });
 
