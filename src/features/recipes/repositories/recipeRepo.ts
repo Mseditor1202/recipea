@@ -49,11 +49,8 @@ export async function createRecipe(
     ...payload,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-
-    // 旧フィールドとの互換がまだ必要なら残す
-    recipeName: payload.title,
-    searchTags: payload.tags ?? [],
   });
+
   return ref.id;
 }
 
