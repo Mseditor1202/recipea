@@ -1,4 +1,5 @@
 // pages/recipes/weekly/zubora.jsx
+import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useMemo, useState } from "react";
 import NextLink from "next/link";
@@ -28,17 +29,13 @@ import {
   getDoc,
   getDocs,
   collection,
+  query,
+  where,
   setDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import RecipeImage from "@/components/recipes/RecipeImage";
-
-/** ===============================
- * ✅ ズボラ用セットの固定ドキュメントID
- * - home側が参照しやすいよう固定にする
- =============================== */
-const ZUBORA_DOC_ID = "zuboraTemplate";
 
 /** ===============================
  * meta
@@ -71,7 +68,7 @@ function ensureTemplateDoc(data) {
   };
 }
 
-/** ✅ category の揺れ吸収（Drawer絞り込み用） */
+/**  category の揺れ吸収（Drawer絞り込み用） */
 function normalizeCategory(cat) {
   if (!cat) return "";
   const c = String(cat).toLowerCase();
@@ -90,6 +87,8 @@ function normalizeCategory(cat) {
 }
 
 export default function ZuboraTemplatePage() {
+  const { user } = useAuth();
+
   // 状態
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -113,25 +112,42 @@ export default function ZuboraTemplatePage() {
 
   // 初回：recipes + zubora template 読み込み
   useEffect(() => {
+    if (!user) return;
+
     const run = async () => {
       setLoading(true);
       setErrorMsg("");
       setSaveMsg("");
 
       try {
-        // 1) recipes
-        const rSnap = await getDocs(collection(db, "recipes"));
-        const list = rSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        // 1) recipes：本人分だけ取得
+        const rSnap = await getDocs(
+          query(collection(db, "recipes"), where("userId", "==", user.uid)),
+        );
+
+        const list = rSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+
         const map = {};
-        list.forEach((r) => (map[r.id] = r));
+        list.forEach((r) => {
+          map[r.id] = r;
+        });
+
         setRecipeList(list);
         setRecipeMap(map);
 
-        // 2) template doc
-        const ref = doc(db, "weeklyDaySets", ZUBORA_DOC_ID);
+        // 2) zubora template：本人専用ドキュメント
+        const ref = doc(db, "weeklyDaySets", `${user.uid}_zubora`);
+
         const snap = await getDoc(ref);
-        if (snap.exists()) setTplDoc(ensureTemplateDoc(snap.data()));
-        else setTplDoc(ensureTemplateDoc(null));
+
+        if (snap.exists()) {
+          setTplDoc(ensureTemplateDoc(snap.data()));
+        } else {
+          setTplDoc(ensureTemplateDoc(null));
+        }
       } catch (e) {
         console.error(e);
         setErrorMsg("読み込みに失敗しました。");
@@ -141,7 +157,7 @@ export default function ZuboraTemplatePage() {
     };
 
     run();
-  }, []);
+  }, [user]);
 
   // 表示用
   const getRecipeName = (id) => recipeMap?.[id]?.recipeName || "未設定";
@@ -185,10 +201,10 @@ export default function ZuboraTemplatePage() {
   }, [recipeList, pickerSearch, picker.slot, useCategoryFilter]);
 
   /** ===============================
-   * ✅ レシピ選択 → template doc に保存
+   *  レシピ選択 → template doc に保存
    =============================== */
   const handlePickRecipe = async (recipeId) => {
-    if (!picker?.meal || !picker?.slot) return;
+    if (!user || !picker?.meal || !picker?.slot) return;
 
     setErrorMsg("");
     setSaveMsg("");
@@ -199,13 +215,19 @@ export default function ZuboraTemplatePage() {
       // 即反映
       setTplDoc((prev) => ({
         ...prev,
-        [picker.meal]: { ...prev[picker.meal], [picker.slot]: recipeId },
+        [picker.meal]: {
+          ...prev[picker.meal],
+          [picker.slot]: recipeId,
+        },
       }));
 
       await setDoc(
-        doc(db, "weeklyDaySets", ZUBORA_DOC_ID),
+        doc(db, "weeklyDaySets", `${user.uid}_zubora`),
         {
-          [picker.meal]: { [picker.slot]: recipeId },
+          userId: user.uid,
+          [picker.meal]: {
+            [picker.slot]: recipeId,
+          },
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -215,29 +237,36 @@ export default function ZuboraTemplatePage() {
       closePicker();
     } catch (e) {
       console.error(e);
-      setErrorMsg("レシピのセットに失敗しました。");
+      setErrorMsg("ズボラ用セットの更新に失敗しました。");
     } finally {
       setSaving(false);
     }
   };
 
   /** ===============================
-   * ✅ meal単位の削除（4枠null）
+   *  meal単位の削除（4枠null）
    =============================== */
   const handleClearMeal = async (mealKey) => {
+    if (!user) return;
+
     setErrorMsg("");
     setSaveMsg("");
 
     const cleared = emptyMeal();
 
     // 即反映
-    setTplDoc((prev) => ({ ...prev, [mealKey]: cleared }));
+    setTplDoc((prev) => ({
+      ...prev,
+      [mealKey]: cleared,
+    }));
 
     try {
       setSaving(true);
+
       await setDoc(
-        doc(db, "weeklyDaySets", ZUBORA_DOC_ID),
+        doc(db, "weeklyDaySets", `${user.uid}_zubora`),
         {
+          userId: user.uid,
           [mealKey]: cleared,
           updatedAt: serverTimestamp(),
         },
@@ -245,6 +274,7 @@ export default function ZuboraTemplatePage() {
       );
 
       const label = MEALS.find((m) => m.key === mealKey)?.label || mealKey;
+
       setSaveMsg(`${label} の献立を削除しました。`);
     } catch (e) {
       console.error(e);
@@ -255,19 +285,27 @@ export default function ZuboraTemplatePage() {
   };
 
   /** ===============================
-   * ✅ メモ保存
+   * メモ保存
    =============================== */
   const handleSaveMemo = async () => {
+    if (!user) return;
+
     setErrorMsg("");
     setSaveMsg("");
 
     try {
       setSaving(true);
+
       await setDoc(
-        doc(db, "weeklyDaySets", ZUBORA_DOC_ID),
-        { memo: tplDoc.memo || "", updatedAt: serverTimestamp() },
+        doc(db, "weeklyDaySets", `${user.uid}_zubora`),
+        {
+          userId: user.uid,
+          memo: tplDoc.memo || "",
+          updatedAt: serverTimestamp(),
+        },
         { merge: true },
       );
+
       setSaveMsg("メモを保存しました。");
     } catch (e) {
       console.error(e);
@@ -278,18 +316,21 @@ export default function ZuboraTemplatePage() {
   };
 
   /** ===============================
-   * ✅ 全体保存（まとめて保存したい派向け）
-   * - 変更ボタン連打しても最後に一括保存できるように残しておくと安心
+   *  全体保存
    =============================== */
   const handleSaveAll = async () => {
+    if (!user) return;
+
     setErrorMsg("");
     setSaveMsg("");
 
     try {
       setSaving(true);
+
       await setDoc(
-        doc(db, "weeklyDaySets", ZUBORA_DOC_ID),
+        doc(db, "weeklyDaySets", `${user.uid}_zubora`),
         {
+          userId: user.uid,
           breakfast: tplDoc.breakfast,
           lunch: tplDoc.lunch,
           dinner: tplDoc.dinner,
@@ -298,6 +339,7 @@ export default function ZuboraTemplatePage() {
         },
         { merge: true },
       );
+
       setSaveMsg("ズボラ用セットを保存しました。");
     } catch (e) {
       console.error(e);
@@ -362,7 +404,6 @@ export default function ZuboraTemplatePage() {
             >
               <CardContent>
                 <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                  <Chip size="small" label={`docId: ${ZUBORA_DOC_ID}`} />
                   <Chip
                     size="small"
                     label={`recipes: ${recipeList.length}件`}

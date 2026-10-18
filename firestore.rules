@@ -1,0 +1,137 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function createsOwn() {
+      return signedIn()
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    function ownsExisting() {
+      return signedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+match /users/{userId} {
+  allow read:
+    if signedIn() && request.auth.uid == userId;
+
+  allow create:
+    if signedIn()
+    && request.auth.uid == userId
+    && request.resource.data.keys().hasOnly([
+      "shoppingNote",
+      "shoppingNoteUpdatedAt"
+    ]);
+
+  allow update:
+    if signedIn()
+    && request.auth.uid == userId
+    && request.resource.data
+      .diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        "shoppingNote",
+        "shoppingNoteUpdatedAt"
+      ]);
+
+  allow delete: if false;
+}
+
+    match /recipes/{id} {
+      allow create: if createsOwn();
+      allow read, delete: if ownsExisting();
+      allow update:
+        if ownsExisting()
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /dailySets/{id} {
+      allow create: if createsOwn();
+      allow read, delete: if ownsExisting();
+      allow update:
+        if ownsExisting()
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+match /weeklyDaySets/{id} {
+  function isOwnWeeklyId() {
+    return signedIn()
+      && id.matches('^' + request.auth.uid + '_.*$');
+  }
+
+  allow create:
+    if isOwnWeeklyId()
+    && request.resource.data.userId == request.auth.uid;
+
+  allow get:
+    if isOwnWeeklyId()
+    && (
+      !exists(/databases/$(database)/documents/weeklyDaySets/$(id))
+      || resource.data.userId == request.auth.uid
+    );
+
+  allow list:
+    if ownsExisting();
+
+  allow delete:
+    if isOwnWeeklyId()
+    && ownsExisting();
+
+  allow update:
+    if isOwnWeeklyId()
+    && ownsExisting()
+    && request.resource.data.userId == request.auth.uid;
+}
+
+    match /fridgeLots/{id} {
+      allow create: if createsOwn();
+      allow read, delete: if ownsExisting();
+      allow update:
+        if ownsExisting()
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /shoppingItems/{id} {
+      allow create: if createsOwn();
+      allow read, delete: if ownsExisting();
+      allow update:
+        if ownsExisting()
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /shoppingDraftSessions/{id} {
+      allow create: if createsOwn();
+      allow read, delete: if ownsExisting();
+      allow update:
+        if ownsExisting()
+        && request.resource.data.userId == request.auth.uid;
+
+      match /items/{itemId} {
+        allow read, create, update, delete:
+          if signedIn()
+          && get(/databases/$(database)/documents/shoppingDraftSessions/$(id)).data.userId
+             == request.auth.uid;
+      }
+    }
+
+    match /appConfigs/{id} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /categoryExpireRules/{id} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

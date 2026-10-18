@@ -1,4 +1,5 @@
 // pages/home/index.jsx
+import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import NextLink from "next/link";
@@ -940,6 +941,8 @@ function MealSlidePanelV2({
 }
 
 export default function HomeTodayMenu() {
+  const { user } = useAuth();
+
   const [tab, setTab] = useState(0);
 
   const [todayKey, setTodayKey] = useState("");
@@ -987,15 +990,18 @@ export default function HomeTodayMenu() {
   }, []);
 
   useEffect(() => {
-    if (!rangeKeys || rangeKeys.length === 0) return;
+    if (!user || !rangeKeys || rangeKeys.length === 0) return;
 
     const fetchRange = async () => {
       setLoadingRange(true);
       setError("");
 
       try {
+        // weeklyDaySets を「ユーザーID + 日付」で取得
         const snaps = await Promise.all(
-          rangeKeys.map((key) => getDoc(doc(db, COLLECTION_WEEKLY_DAY, key))),
+          rangeKeys.map((key) =>
+            getDoc(doc(db, COLLECTION_WEEKLY_DAY, `${user.uid}_${key}`)),
+          ),
         );
 
         const map = {};
@@ -1008,7 +1014,9 @@ export default function HomeTodayMenu() {
           const data = snap.data() || {};
           map[key] = data;
 
-          collectRecipeIdsFromDay(data).forEach((id) => recipeIdSet.add(id));
+          collectRecipeIdsFromDay(data).forEach((id) => {
+            recipeIdSet.add(id);
+          });
         });
 
         setDayDocsByKey(map);
@@ -1023,15 +1031,25 @@ export default function HomeTodayMenu() {
         const recipesCol = collection(db, COLLECTION_RECIPES);
         const recipesMapTmp = {};
 
-        // where in は10件制限 → 分割
+        // Firestore の in クエリ用に分割
         const chunkSize = 10;
+
         for (let i = 0; i < allIds.length; i += chunkSize) {
           const chunk = allIds.slice(i, i + chunkSize);
-          const q = query(recipesCol, where("__name__", "in", chunk));
+
+          const q = query(
+            recipesCol,
+            where("userId", "==", user.uid),
+            where("__name__", "in", chunk),
+          );
+
           const snapRecipes = await getDocs(q);
 
           snapRecipes.forEach((docSnap) => {
-            recipesMapTmp[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+            recipesMapTmp[docSnap.id] = {
+              id: docSnap.id,
+              ...docSnap.data(),
+            };
           });
         }
 
@@ -1045,7 +1063,7 @@ export default function HomeTodayMenu() {
     };
 
     fetchRange();
-  }, [rangeKeys]);
+  }, [rangeKeys, user]);
 
   const handleTabChange = useCallback((_, next) => setTab(next), []);
   const handleSelectDay = useCallback((key) => setSelectedDayKey(key), []);
@@ -1070,13 +1088,23 @@ export default function HomeTodayMenu() {
 
   const refreshDayAndRecipes = useCallback(
     async (key) => {
-      const snap = await getDoc(doc(db, COLLECTION_WEEKLY_DAY, key));
+      if (!user || !key) return;
+
+      const snap = await getDoc(
+        doc(db, COLLECTION_WEEKLY_DAY, `${user.uid}_${key}`),
+      );
+
       const nextDay = snap.exists() ? snap.data() || {} : null;
 
       setDayDocsByKey((prev) => {
         const next = { ...prev };
-        if (nextDay) next[key] = nextDay;
-        else delete next[key];
+
+        if (nextDay) {
+          next[key] = nextDay;
+        } else {
+          delete next[key];
+        }
+
         return next;
       });
 
@@ -1094,37 +1122,62 @@ export default function HomeTodayMenu() {
 
       for (let i = 0; i < needed.length; i += chunkSize) {
         const chunk = needed.slice(i, i + chunkSize);
-        const q = query(recipesCol, where("__name__", "in", chunk));
+
+        const q = query(
+          recipesCol,
+          where("userId", "==", user.uid),
+          where("__name__", "in", chunk),
+        );
+
         const snapRecipes = await getDocs(q);
+
         snapRecipes.forEach((docSnap) => {
-          fetched[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+          fetched[docSnap.id] = {
+            id: docSnap.id,
+            ...docSnap.data(),
+          };
         });
       }
 
-      setRecipesById((prev) => ({ ...prev, ...fetched }));
+      setRecipesById((prev) => ({
+        ...prev,
+        ...fetched,
+      }));
     },
-    [recipesById],
+    [recipesById, user],
   );
 
   /** ===============================
    * ズボラ用セットを今日に適用
    =============================== */
   const applyZuboraDailySetToToday = useCallback(async () => {
-    if (!todayKey) return;
+    if (!user || !todayKey) return;
 
     setActionBusy(true);
 
     try {
       const dailyRef = collection(db, COLLECTION_DAILYSETS);
 
-      // createdAt が無いと orderBy で落ちるので、try/catch fallback
       let snap;
+
       try {
-        const qDaily = query(dailyRef, orderBy("createdAt", "desc"), limit(30));
+        const qDaily = query(
+          dailyRef,
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc"),
+          limit(30),
+        );
+
         snap = await getDocs(qDaily);
       } catch (e) {
         console.warn("dailySets orderBy(createdAt) failed. fallback:", e);
-        const qDaily = query(dailyRef, limit(30));
+
+        const qDaily = query(
+          dailyRef,
+          where("userId", "==", user.uid),
+          limit(30),
+        );
+
         snap = await getDocs(qDaily);
       }
 
@@ -1136,12 +1189,17 @@ export default function HomeTodayMenu() {
         return;
       }
 
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const list = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+
       const chosen =
         list.find((d) => (d.name || "").includes(ZUBORA_DAILYSET_KEYWORD)) ||
         list[0];
 
       const dailySetId = chosen?.id;
+
       if (!dailySetId) {
         showToast(
           "ズボラ用セットが見つかりませんでした。ズボラ用セットの登録をおこなってください。",
@@ -1151,16 +1209,25 @@ export default function HomeTodayMenu() {
       }
 
       const dsSnap = await getDoc(doc(db, COLLECTION_DAILYSETS, dailySetId));
+
       if (!dsSnap.exists()) {
         showToast("選択されたテンプレートが見つかりませんでした。", "error");
         return;
       }
 
-      const slots = dailySetToMealSlots(dsSnap.data() || {});
+      const dailySetData = dsSnap.data() || {};
+
+      if (dailySetData.userId !== user.uid) {
+        showToast("このテンプレートは利用できません。", "error");
+        return;
+      }
+
+      const slots = dailySetToMealSlots(dailySetData);
 
       await setDoc(
-        doc(db, COLLECTION_WEEKLY_DAY, todayKey),
+        doc(db, COLLECTION_WEEKLY_DAY, `${user.uid}_${todayKey}`),
         {
+          userId: user.uid,
           breakfast: slots,
           lunch: slots,
           dinner: slots,
@@ -1175,14 +1242,16 @@ export default function HomeTodayMenu() {
       );
 
       await refreshDayAndRecipes(todayKey);
+
       showToast("ズボラ用セットで献立を作成しました。", "success");
     } catch (e) {
       console.error("applyZuboraDailySetToToday error:", e);
+
       showToast("ズボラ用セットの適用に問題が発生しました。", "error");
     } finally {
       setActionBusy(false);
     }
-  }, [todayKey, refreshDayAndRecipes, showToast]);
+  }, [user, todayKey, refreshDayAndRecipes, showToast]);
 
   /** ===============================
    * 変更する → /recipes の選択モードへ
@@ -1192,12 +1261,9 @@ export default function HomeTodayMenu() {
     window.location.href = `/recipes?mode=weeklyDay&dayKey=${dayKey}&meal=${mealKey}&slot=${slotKey}&from=home`;
   }, []);
 
-  /** ===============================
-   * 削除（枠をnullにして templateIds も解除）
-   =============================== */
   const deleteSlotRecipe = useCallback(
     async (dayKey, mealKey, slotKey) => {
-      if (!dayKey) return;
+      if (!user || !dayKey) return;
 
       try {
         setActionBusy(true);
@@ -1207,13 +1273,16 @@ export default function HomeTodayMenu() {
           const next = { ...prev };
           const day = next[dayKey] ? { ...next[dayKey] } : {};
           const meal = day?.[mealKey] ? { ...day[mealKey] } : {};
-          meal[slotKey] = null;
 
+          meal[slotKey] = null;
           day[mealKey] = meal;
 
           // テンプレ適用中に部分削除するとズレるので templateIds を外す
           if (day?.templateIds?.[mealKey]) {
-            day.templateIds = { ...(day.templateIds || {}), [mealKey]: "" };
+            day.templateIds = {
+              ...(day.templateIds || {}),
+              [mealKey]: "",
+            };
           }
 
           next[dayKey] = day;
@@ -1221,16 +1290,22 @@ export default function HomeTodayMenu() {
         });
 
         await setDoc(
-          doc(db, COLLECTION_WEEKLY_DAY, dayKey),
+          doc(db, COLLECTION_WEEKLY_DAY, `${user.uid}_${dayKey}`),
           {
-            [mealKey]: { [slotKey]: null },
-            templateIds: { [mealKey]: "" },
+            userId: user.uid,
+            [mealKey]: {
+              [slotKey]: null,
+            },
+            templateIds: {
+              [mealKey]: "",
+            },
             updatedAt: serverTimestamp(),
           },
           { merge: true },
         );
 
         await refreshDayAndRecipes(dayKey);
+
         showToast("削除しました", "success");
       } catch (e) {
         console.error("deleteSlotRecipe error:", e);
@@ -1239,7 +1314,7 @@ export default function HomeTodayMenu() {
         setActionBusy(false);
       }
     },
-    [refreshDayAndRecipes, showToast],
+    [user, refreshDayAndRecipes, showToast],
   );
 
   const selectedHasPlan = useMemo(() => {

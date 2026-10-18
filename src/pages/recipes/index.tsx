@@ -7,7 +7,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useRouter } from "next/router";
 
-import { setDoc, updateDoc, serverTimestamp, doc } from "firebase/firestore";
+import {
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { updateRecipeMemo } from "@/features/recipes/repositories/recipeRepo";
 import { listRecipes } from "@/features/recipes";
@@ -188,7 +194,7 @@ export default function RecipesPage() {
     setLoadError(false);
 
     try {
-      const list = await listRecipes();
+      const list = await listRecipes(currentUserId);
 
       console.log("currentUserId", currentUserId);
       console.log("list[0]", list[0]);
@@ -337,6 +343,14 @@ export default function RecipesPage() {
   ============================== */
   const handleSelectRecipe = useCallback(
     async (recipeId: string) => {
+      if (!currentUserId) {
+        openToast(
+          "error",
+          "ログイン情報を確認できませんでした。再度ログインしてください。",
+        );
+        return;
+      }
+
       if (!canSelect) {
         openToast(
           "error",
@@ -348,22 +362,41 @@ export default function RecipesPage() {
       setSelectSaving(true);
 
       try {
-        //  weeklyDaySets にセット
+        // weeklyDaySets にセット
         if (canSelectWeeklyDay) {
           await setDoc(
-            doc(db, "weeklyDaySets", dayKey),
+            doc(db, "weeklyDaySets", `${currentUserId}_${dayKey}`),
             {
-              // meal/slot はURL由来なので型は string のまま扱う（実体は上でバリデーション済み）
-              [meal]: { [slot]: recipeId },
+              userId: currentUserId,
+              // meal/slot はURL由来だが、上でバリデーション済み
+              [meal]: {
+                [slot]: recipeId,
+              },
               updatedAt: serverTimestamp(),
             },
             { merge: true },
           );
         }
 
-        //  dailySets にセット
+        // dailySets にセット
         if (canSelectDailySet) {
-          await updateDoc(doc(db, "dailySets", dailySetId), {
+          const dailySetRef = doc(db, "dailySets", dailySetId);
+
+          const dailySetSnap = await getDoc(dailySetRef);
+
+          if (!dailySetSnap.exists()) {
+            openToast("error", "献立レシピセットが見つかりませんでした。");
+            return;
+          }
+
+          const dailySetData = dailySetSnap.data();
+
+          if (dailySetData.userId !== currentUserId) {
+            openToast("error", "この献立レシピセットは編集できません。");
+            return;
+          }
+
+          await updateDoc(dailySetRef, {
             [slot]: recipeId,
             updatedAt: serverTimestamp(),
           });
@@ -371,11 +404,12 @@ export default function RecipesPage() {
 
         openToast("success", "セットしました");
 
-        //  戻り先制御
+        // 戻り先制御
         if (from === "home") {
           router.push("/home");
           return;
         }
+
         if (from === "dailyset") {
           router.push("/recipes/dailyset");
           return;
@@ -393,6 +427,7 @@ export default function RecipesPage() {
       }
     },
     [
+      currentUserId,
       canSelect,
       canSelectWeeklyDay,
       canSelectDailySet,

@@ -102,7 +102,7 @@ export async function setShoppingNotesByUser(userId: string, note: string) {
         shoppingNote: String(note || ""),
         shoppingNoteUpdatedAt: serverTimestamp(),
       },
-      { merge: true }
+      { merge: true },
     );
   }
 }
@@ -111,11 +111,11 @@ export async function setShoppingNotesByUser(userId: string, note: string) {
 // shoppingItems（確定後の買い物リスト）
 // =====================================================
 export async function getShoppingItemsByUser(
-  userId: string
+  userId: string,
 ): Promise<ShoppingItem[]> {
   const qy = query(
     collection(db, "shoppingItems"),
-    where("userId", "==", userId)
+    where("userId", "==", userId),
   );
   const snap = await getDocs(qy);
 
@@ -196,7 +196,7 @@ export async function addShoppingItem(args: AddShoppingItemArgs) {
 
 export async function setShoppingItemPurchased(
   itemId: string,
-  purchased: boolean
+  purchased: boolean,
 ) {
   const ref = doc(db, "shoppingItems", itemId);
   await updateDoc(ref, {
@@ -235,7 +235,7 @@ export async function markAllPurchased({ userId }: { userId: string }) {
   if (!userId) throw new Error("userId is required");
 
   const snap = await getDocs(
-    query(collection(db, "shoppingItems"), where("userId", "==", userId))
+    query(collection(db, "shoppingItems"), where("userId", "==", userId)),
   );
 
   const targets = snap.docs.filter((d) => {
@@ -269,7 +269,7 @@ export async function deleteAllShoppingItems({ userId }: { userId: string }) {
   if (!userId) throw new Error("userId is required");
 
   const snap = await getDocs(
-    query(collection(db, "shoppingItems"), where("userId", "==", userId))
+    query(collection(db, "shoppingItems"), where("userId", "==", userId)),
   );
   if (snap.empty) return { deleted: 0 };
 
@@ -344,7 +344,7 @@ function normalizeIngredientToRow(ing: any) {
   const rawText = String(
     ing.rawText ||
       ing.text ||
-      (quantity || unit ? `${name} ${quantity}${unit}`.trim() : name)
+      (quantity || unit ? `${name} ${quantity}${unit}`.trim() : name),
   ).trim();
 
   return { name, rawText: rawText || name };
@@ -377,7 +377,7 @@ function getFridgeStateForName(index: Map<string, FridgeState>, name: string) {
 async function archiveOldDrafts(userId: string) {
   const qy = query(
     collection(db, "shoppingDraftSessions"),
-    where("userId", "==", userId)
+    where("userId", "==", userId),
   );
   const snap = await getDocs(qy);
   if (snap.empty) return;
@@ -416,7 +416,9 @@ export async function generateShoppingDraftFromPlans({
   for (let i = 0; i < days; i++) dayKeys.push(toDateKey(addDays(start, i)));
 
   const daySnaps = await Promise.all(
-    dayKeys.map((k) => getDoc(doc(db, COLLECTION_WEEKLY_DAY, k)))
+    dayKeys.map((k) =>
+      getDoc(doc(db, COLLECTION_WEEKLY_DAY, `${userId}_${k}`)),
+    ),
   );
 
   const dayDocs: Record<string, any> = {};
@@ -447,8 +449,10 @@ export async function generateShoppingDraftFromPlans({
 
     const qy = query(
       collection(db, COLLECTION_RECIPES),
-      where("__name__", "in", chunk)
+      where("userId", "==", userId),
+      where("__name__", "in", chunk),
     );
+
     const snap = await getDocs(qy);
     snap.forEach((docSnap) => {
       recipesById[docSnap.id] = { id: docSnap.id, ...(docSnap.data() || {}) };
@@ -521,7 +525,7 @@ export async function generateShoppingDraftFromPlans({
     db,
     "shoppingDraftSessions",
     sessionRef.id,
-    "items"
+    "items",
   );
   const batch = writeBatch(db);
 
@@ -554,7 +558,7 @@ export async function generateShoppingDraftFromPlans({
 // draft session / items
 // =====================================================
 export async function getDraftSession(
-  sessionId: string
+  sessionId: string,
 ): Promise<DraftSession | null> {
   const ref = doc(db, "shoppingDraftSessions", sessionId);
   const snap = await getDoc(ref);
@@ -576,7 +580,7 @@ export async function getDraftSession(
 
 export async function getDraftItems(sessionId: string): Promise<DraftItem[]> {
   const snap = await getDocs(
-    collection(db, "shoppingDraftSessions", sessionId, "items")
+    collection(db, "shoppingDraftSessions", sessionId, "items"),
   );
 
   const items: DraftItem[] = snap.docs.map((d) => {
@@ -614,7 +618,7 @@ export async function getDraftItems(sessionId: string): Promise<DraftItem[]> {
 export async function setDraftItemSkip(
   sessionId: string,
   itemId: string,
-  skip: boolean
+  skip: boolean,
 ) {
   const ref = doc(db, "shoppingDraftSessions", sessionId, "items", itemId);
   await updateDoc(ref, { skip: !!skip, updatedAt: serverTimestamp() });
@@ -623,7 +627,7 @@ export async function setDraftItemSkip(
 export async function setDraftItemMemo(
   sessionId: string,
   itemId: string,
-  memo: string
+  memo: string,
 ) {
   const ref = doc(db, "shoppingDraftSessions", sessionId, "items", itemId);
   await updateDoc(ref, {

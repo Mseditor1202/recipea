@@ -1,4 +1,6 @@
 // src/pages/recipes/dailyset/create.js
+import { useRouter } from "next/router";
+import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useState } from "react";
 import {
@@ -6,6 +8,8 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import MealTypeDescription from "@/components/recipes/MealTypeDescription";
@@ -21,6 +25,8 @@ import {
 } from "@mui/material";
 
 export default function CreateDailySet() {
+  const router = useRouter();
+  const { user } = useAuth();
   const [recipes, setRecipes] = useState([]);
   const [setName, setSetName] = useState("");
 
@@ -35,15 +41,29 @@ export default function CreateDailySet() {
 
   // 全レシピ取得
   useEffect(() => {
+    if (!user) return;
+
     const fetchRecipes = async () => {
-      const snap = await getDocs(collection(db, "recipes"));
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const snap = await getDocs(
+        query(collection(db, "recipes"), where("userId", "==", user.uid)),
+      );
+
+      const list = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+
       setRecipes(list);
     };
+
     fetchRecipes();
-  }, []);
+  }, [user]);
 
   const createSet = async () => {
+    if (!user) {
+      alert("ログイン情報を確認できませんでした");
+      return;
+    }
     if (!setName.trim()) {
       alert("セット名を入力してください");
       return;
@@ -51,6 +71,7 @@ export default function CreateDailySet() {
 
     // ✅ 4つ必須チェックは削除（空欄OK思想）
     await addDoc(collection(db, "dailySets"), {
+      userId: user.uid,
       name: setName.trim(),
       staple: staple || null,
       mainDish: mainDish || null,
@@ -61,6 +82,7 @@ export default function CreateDailySet() {
       updatedAt: serverTimestamp(),
     });
 
+    await router.push("/recipes/dailyset");
     alert("レシピセットを作成しました！");
 
     // 入力内容クリア

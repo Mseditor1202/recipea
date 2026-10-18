@@ -1,4 +1,5 @@
 // pages/recipes/dailyset/index.jsx
+import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/router";
@@ -43,6 +44,7 @@ const SLOT_LABELS = {
 const DEFAULT_IMAGE = "/images/default-recipe.png";
 
 export default function DailySetsListPage() {
+  const { user } = useAuth();
   const router = useRouter();
   const [dailySets, setDailySets] = useState([]);
   const [recipesById, setRecipesById] = useState({});
@@ -73,6 +75,8 @@ export default function DailySetsListPage() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
+
     const fetchDailySetsAndRecipes = async () => {
       setLoading(true);
       setError("");
@@ -80,7 +84,11 @@ export default function DailySetsListPage() {
       try {
         // 1) dailySets 取得
         const dailySetsRef = collection(db, COLLECTION_DAILY);
-        const qDaily = query(dailySetsRef, orderBy("createdAt", "desc"));
+        const qDaily = query(
+          dailySetsRef,
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc"),
+        );
         const dailySnap = await getDocs(qDaily);
 
         const dailyList = dailySnap.docs.map((d) => ({
@@ -132,7 +140,11 @@ export default function DailySetsListPage() {
 
         const recipesRef = collection(db, COLLECTION_RECIPES);
         const promises = chunks.map((idChunk) => {
-          const qRecipes = query(recipesRef, where("__name__", "in", idChunk));
+          const qRecipes = query(
+            recipesRef,
+            where("userId", "==", user.uid),
+            where("__name__", "in", idChunk),
+          );
           return getDocs(qRecipes);
         });
 
@@ -154,7 +166,7 @@ export default function DailySetsListPage() {
     };
 
     fetchDailySetsAndRecipes();
-  }, []);
+  }, [user]);
 
   const isEmpty = useMemo(
     () => !loading && dailySets.length === 0,

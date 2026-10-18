@@ -2,6 +2,20 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
+/**
+ * @typedef {import("firebase/auth").User} FirebaseUser
+ */
+
+/**
+ * @typedef {Object} AuthContextValue
+ * @property {boolean} isAuth
+ * @property {(value: boolean) => void} setIsAuth
+ * @property {FirebaseUser | null} user
+ * @property {boolean} loading
+ */
+
+/** @type {import("react").Context<AuthContextValue>} */
+
 const Ctx = createContext({
   isAuth: false,
   setIsAuth: (_value) => {},
@@ -11,7 +25,7 @@ const Ctx = createContext({
 
 export function AuthProvider({ children }) {
   const [isAuth, setIsAuth] = useState(false);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(/** @type {FirebaseUser | null} */ (null));
   const [loading, setLoading] = useState(true);
 
   //Firebaseの認証状態を監視

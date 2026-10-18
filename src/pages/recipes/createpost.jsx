@@ -177,8 +177,7 @@ export default function CreateRecipe() {
           lowDishwashing: !!isLowDishwashing,
         },
 
-        //  author
-        authorId: user.uid,
+        userId: user.uid,
       });
 
       router.push("/recipes");

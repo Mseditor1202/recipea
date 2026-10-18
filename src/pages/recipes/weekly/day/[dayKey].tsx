@@ -1,4 +1,5 @@
 // pages/recipes/weekly/day/[dayKey].jsx
+import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -30,6 +31,8 @@ import {
   collection,
   setDoc,
   serverTimestamp,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import RecipeImage from "@/components/recipes/RecipeImage";
@@ -105,6 +108,7 @@ type PickerState = {
 } | null;
 
 export default function WeeklyDayEditPage() {
+  const { user } = useAuth();
   const router = useRouter();
   const { dayKey } = router.query; // YYYY-MM-DD
 
@@ -140,9 +144,13 @@ export default function WeeklyDayEditPage() {
 
   // common fetch
   useEffect(() => {
+    if (!user) return;
+
     const fetchCommon = async () => {
       try {
-        const rSnap = await getDocs(collection(db, "recipes"));
+        const rSnap = await getDocs(
+          query(collection(db, "recipes"), where("userId", "==", user.uid)),
+        );
 
         const list = rSnap.docs.map((d) => {
           const data = d.data() as any;
@@ -156,7 +164,9 @@ export default function WeeklyDayEditPage() {
         setRecipeList(list);
         setRecipeMap(map);
 
-        const dsSnap = await getDocs(collection(db, "dailySets"));
+        const dsSnap = await getDocs(
+          query(collection(db, "dailySets"), where("userId", "==", user.uid)),
+        );
 
         const ds = dsSnap.docs.map((d) => {
           const data = d.data() as any;
@@ -168,12 +178,13 @@ export default function WeeklyDayEditPage() {
         console.error(e);
       }
     };
+
     fetchCommon();
-  }, []);
+  }, [user]);
 
   // load weeklyDaySets doc
   useEffect(() => {
-    if (!router.isReady || !dayKey) return;
+    if (!router.isReady || !dayKey || !user) return;
 
     const run = async () => {
       setLoading(true);
@@ -181,7 +192,7 @@ export default function WeeklyDayEditPage() {
       setSaveMsg("");
 
       try {
-        const ref = doc(db, "weeklyDaySets", String(dayKey));
+        const ref = doc(db, "weeklyDaySets", `${user.uid}_${dayKey}`);
         const snap = await getDoc(ref);
         if (snap.exists()) setDayDoc(ensureDayDoc(snap.data()));
         else setDayDoc(ensureDayDoc(null));
@@ -194,7 +205,7 @@ export default function WeeklyDayEditPage() {
     };
 
     run();
-  }, [router.isReady, dayKey]);
+  }, [router.isReady, dayKey, user]);
 
   const getRecipeName = (id?: string | null): string =>
     (id ? recipeMap[id]?.recipeName : undefined) || "未設定";
@@ -240,7 +251,7 @@ export default function WeeklyDayEditPage() {
   }, [recipeList, pickerSearch, picker, useCategoryFilter]);
 
   const handlePickRecipe = async (recipeId: string) => {
-    if (!picker?.dayKey || !picker?.meal || !picker?.slot) return;
+    if (!user || !picker?.dayKey || !picker?.meal || !picker?.slot) return;
 
     setErrorMsg("");
     setSaveMsg("");
@@ -254,8 +265,9 @@ export default function WeeklyDayEditPage() {
       }));
 
       await setDoc(
-        doc(db, "weeklyDaySets", picker.dayKey),
+        doc(db, "weeklyDaySets", `${user.uid}_${picker.dayKey}`),
         {
+          userId: user.uid,
           [picker.meal]: { [picker.slot]: recipeId },
           updatedAt: serverTimestamp(),
         },
@@ -273,7 +285,7 @@ export default function WeeklyDayEditPage() {
   };
 
   const handleSaveMemo = async () => {
-    if (!dayKey) return;
+    if (!user || !dayKey) return;
 
     setErrorMsg("");
     setSaveMsg("");
@@ -281,10 +293,15 @@ export default function WeeklyDayEditPage() {
     try {
       setSaving(true);
       await setDoc(
-        doc(db, "weeklyDaySets", String(dayKey)),
-        { memo: dayDoc.memo || "", updatedAt: serverTimestamp() },
+        doc(db, "weeklyDaySets", `${user.uid}_${dayKey}`),
+        {
+          userId: user.uid,
+          memo: dayDoc.memo || "",
+          updatedAt: serverTimestamp(),
+        },
         { merge: true },
       );
+
       setSaveMsg("メモを保存しました。");
     } catch (e) {
       console.error(e);
@@ -301,7 +318,7 @@ export default function WeeklyDayEditPage() {
     setErrorMsg("");
     setSaveMsg("");
 
-    if (!dayKey) return;
+    if (!user || !dayKey) return;
 
     if (!dailySetId) {
       setDayDoc((prev) => ({
@@ -310,8 +327,9 @@ export default function WeeklyDayEditPage() {
       }));
 
       await setDoc(
-        doc(db, "weeklyDaySets", String(dayKey)),
+        doc(db, "weeklyDaySets", `${user.uid}_${dayKey}`),
         {
+          userId: user.uid,
           templateIds: { [mealKey]: "" },
           updatedAt: serverTimestamp(),
         },
@@ -344,8 +362,9 @@ export default function WeeklyDayEditPage() {
     try {
       setSaving(true);
       await setDoc(
-        doc(db, "weeklyDaySets", String(dayKey)),
+        doc(db, "weeklyDaySets", `${user.uid}_${dayKey}`),
         {
+          userId: user.uid,
           [mealKey]: nextMeal,
           templateIds: { [mealKey]: dailySetId },
           updatedAt: serverTimestamp(),

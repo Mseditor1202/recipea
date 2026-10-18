@@ -1,4 +1,5 @@
 // pages/recipes/weekly/index.jsx
+import { useAuth } from "@/hooks/useAuth";
 import ListSkeleton from "@/components/states/ListSkeleton";
 import ErrorState from "@/components/states/ErrorState";
 import AppLayout from "@/components/layout/AppLayout";
@@ -39,6 +40,8 @@ import {
   setDoc,
   serverTimestamp,
   addDoc,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import RecipeImage from "@/components/recipes/RecipeImage";
@@ -189,6 +192,7 @@ function getDayKeyLabelFromDateKey(dateKey) {
 }
 
 export default function WeeklyPage() {
+  const { user } = useAuth();
   const router = useRouter();
   const { dayKey: queryDayKey } = router.query;
 
@@ -282,28 +286,37 @@ export default function WeeklyPage() {
 
   // 初回：recipes + dailySets
   useEffect(() => {
+    if (!user) return;
+
     const fetchCommon = async () => {
       try {
-        const rSnap = await getDocs(collection(db, "recipes"));
+        const rSnap = await getDocs(
+          query(collection(db, "recipes"), where("userId", "==", user.uid)),
+        );
+
         const list = rSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         const map = {};
         list.forEach((r) => (map[r.id] = r));
         setRecipeList(list);
         setRecipeMap(map);
 
-        const dsSnap = await getDocs(collection(db, "dailySets"));
+        const dsSnap = await getDocs(
+          query(collection(db, "dailySets"), where("userId", "==", user.uid)),
+        );
+
         const ds = dsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setDailySets(ds);
       } catch (e) {
         console.error(e);
       }
     };
+
     fetchCommon();
-  }, []);
+  }, [user]);
 
   // dateKeyごとに weeklyDaySets を読み込み
   useEffect(() => {
-    if (!dateKey) return;
+    if (!dateKey || !user) return;
 
     const run = async () => {
       setLoading(true);
@@ -311,7 +324,7 @@ export default function WeeklyPage() {
       setSaveMsg("");
 
       try {
-        const ref = doc(db, "weeklyDaySets", String(dateKey));
+        const ref = doc(db, "weeklyDaySets", `${user.uid}_${dateKey}`);
         const snap = await getDoc(ref);
 
         if (snap.exists()) {
@@ -328,7 +341,7 @@ export default function WeeklyPage() {
     };
 
     run();
-  }, [dateKey]);
+  }, [dateKey, user]);
 
   // 表示用
   const getRecipeName = (id) => recipeMap?.[id]?.recipeName || "未設定";
@@ -372,7 +385,7 @@ export default function WeeklyPage() {
 
   // レシピ選択 → weeklyDaySets に保存
   const handlePickRecipe = async (recipeId) => {
-    if (!picker?.dateKey || !picker?.meal || !picker?.slot) return;
+    if (!user || !picker?.dateKey || !picker?.meal || !picker?.slot) return;
 
     setErrorMsg("");
     setSaveMsg("");
@@ -386,10 +399,14 @@ export default function WeeklyPage() {
         [picker.meal]: { ...prev[picker.meal], [picker.slot]: recipeId },
       }));
 
+      // Firestore に保存
       await setDoc(
-        doc(db, "weeklyDaySets", picker.dateKey),
+        doc(db, "weeklyDaySets", `${user.uid}_${picker.dateKey}`),
         {
-          [picker.meal]: { [picker.slot]: recipeId },
+          userId: user.uid,
+          [picker.meal]: {
+            [picker.slot]: recipeId,
+          },
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -407,18 +424,24 @@ export default function WeeklyPage() {
 
   // メモ保存
   const handleSaveMemo = async () => {
-    if (!dateKey) return;
+    if (!user || !dateKey) return;
 
     setErrorMsg("");
     setSaveMsg("");
 
     try {
       setSaving(true);
+
       await setDoc(
-        doc(db, "weeklyDaySets", String(dateKey)),
-        { memo: dayDoc.memo || "", updatedAt: serverTimestamp() },
+        doc(db, "weeklyDaySets", `${user.uid}_${dateKey}`),
+        {
+          userId: user.uid,
+          memo: dayDoc.memo || "",
+          updatedAt: serverTimestamp(),
+        },
         { merge: true },
       );
+
       setSaveMsg("メモを保存しました。");
     } catch (e) {
       console.error(e);
@@ -430,10 +453,12 @@ export default function WeeklyPage() {
 
   // テンプレ適用
   const handleApplyDailySetTemplate = async (mealKey, dailySetId) => {
+    if (!user || !dateKey) return;
+
     setErrorMsg("");
     setSaveMsg("");
 
-    // 解除（templateIdsだけ解除）
+    // テンプレ解除
     if (!dailySetId) {
       setDayDoc((prev) => ({
         ...prev,
@@ -442,14 +467,17 @@ export default function WeeklyPage() {
 
       try {
         setSaving(true);
+
         await setDoc(
-          doc(db, "weeklyDaySets", String(dateKey)),
+          doc(db, "weeklyDaySets", `${user.uid}_${dateKey}`),
           {
+            userId: user.uid,
             templateIds: { [mealKey]: "" },
             updatedAt: serverTimestamp(),
           },
           { merge: true },
         );
+
         setSaveMsg("テンプレを解除しました。");
       } catch (e) {
         console.error(e);
@@ -457,10 +485,12 @@ export default function WeeklyPage() {
       } finally {
         setSaving(false);
       }
+
       return;
     }
 
     const ds = dailySets.find((x) => x.id === dailySetId);
+
     if (!ds) {
       setErrorMsg("テンプレが見つかりませんでした。");
       return;
@@ -473,24 +503,29 @@ export default function WeeklyPage() {
       soup: readDailySetSlot(ds, "soup"),
     };
 
-    // 即反映
     setDayDoc((prev) => ({
       ...prev,
       [mealKey]: nextMeal,
-      templateIds: { ...prev.templateIds, [mealKey]: dailySetId },
+      templateIds: {
+        ...prev.templateIds,
+        [mealKey]: dailySetId,
+      },
     }));
 
     try {
       setSaving(true);
+
       await setDoc(
-        doc(db, "weeklyDaySets", String(dateKey)),
+        doc(db, "weeklyDaySets", `${user.uid}_${dateKey}`),
         {
+          userId: user.uid,
           [mealKey]: nextMeal,
           templateIds: { [mealKey]: dailySetId },
           updatedAt: serverTimestamp(),
         },
         { merge: true },
       );
+
       setSaveMsg("献立レシピセット（テンプレ）を適用しました。");
     } catch (e) {
       console.error(e);
@@ -500,28 +535,32 @@ export default function WeeklyPage() {
     }
   };
 
-  // ✅ 追加：朝/昼/夜 を個別に削除（4枠null + templateIds解除）
+  // 朝/昼/夜 を個別に削除
   const handleClearMeal = async (mealKey) => {
-    if (!dateKey) return;
+    if (!user || !dateKey) return;
 
     setErrorMsg("");
     setSaveMsg("");
 
     const cleared = emptyMeal();
 
-    // 即反映（mealを空にして、templateIdsも解除）
+    // 画面に即反映
     setDayDoc((prev) => ({
       ...prev,
       [mealKey]: cleared,
-      templateIds: { ...prev.templateIds, [mealKey]: "" },
+      templateIds: {
+        ...prev.templateIds,
+        [mealKey]: "",
+      },
     }));
 
     try {
       setSaving(true);
 
       await setDoc(
-        doc(db, "weeklyDaySets", String(dateKey)),
+        doc(db, "weeklyDaySets", `${user.uid}_${dateKey}`),
         {
+          userId: user.uid,
           [mealKey]: cleared,
           templateIds: { [mealKey]: "" },
           updatedAt: serverTimestamp(),
@@ -573,11 +612,11 @@ export default function WeeklyPage() {
     setCreateTplError("");
   };
 
-  // ✅ dailySets に追加して、その meal の templateIds を新IDに差し替え
   const handleCreateTemplate = async () => {
-    if (!createTplMealKey) return;
+    if (!user || !dateKey || !createTplMealKey) return;
 
     const name = (createTplName || "").trim();
+
     if (!name) {
       setCreateTplError("テンプレ名を入力してね。");
       return;
@@ -585,8 +624,9 @@ export default function WeeklyPage() {
 
     const meal = dayDoc?.[createTplMealKey] || emptyMeal();
 
-    // dailySets は staple/mainDish/sideDish/soup で保存する
+    // dailySets に保存するデータ
     const payload = {
+      userId: user.uid,
       name,
       memo: "",
       staple: meal.staple ?? null,
@@ -613,13 +653,19 @@ export default function WeeklyPage() {
       // 3) weeklyDaySets の templateIds を差し替え
       setDayDoc((prev) => ({
         ...prev,
-        templateIds: { ...prev.templateIds, [createTplMealKey]: newId },
+        templateIds: {
+          ...prev.templateIds,
+          [createTplMealKey]: newId,
+        },
       }));
 
       await setDoc(
-        doc(db, "weeklyDaySets", String(dateKey)),
+        doc(db, "weeklyDaySets", `${user.uid}_${dateKey}`),
         {
-          templateIds: { [createTplMealKey]: newId },
+          userId: user.uid,
+          templateIds: {
+            [createTplMealKey]: newId,
+          },
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -772,7 +818,7 @@ export default function WeeklyPage() {
                   setLoading(true);
                   setLoadError(false);
 
-                  getDoc(doc(db, "weeklyDaySets", String(dateKey)))
+                  getDoc(doc(db, "weeklyDaySets", `${user.uid}_${dateKey}`))
                     .then((snap) => {
                       if (snap.exists()) {
                         setDayDoc(ensureDayDoc(snap.data()));
