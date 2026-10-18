@@ -6,8 +6,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -18,12 +20,13 @@ const COLLECTION_RECIPES = "recipes";
 
 type CreateRecipeInput = Omit<Recipe, "id" | "createdAt" | "updatedAt">;
 
-export async function listRecipes(): Promise<Recipe[]> {
+export async function listRecipes(userId: string): Promise<Recipe[]> {
   const colRef = collection(db, COLLECTION_RECIPES).withConverter(
     recipeConverter,
   );
 
-  const snap = await getDocs(colRef);
+  const q = query(colRef, where("userId", "==", userId));
+  const snap = await getDocs(q);
 
   const recipes = snap.docs.map((d) => d.data());
 

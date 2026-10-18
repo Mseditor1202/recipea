@@ -194,7 +194,7 @@ export default function RecipesPage() {
     setLoadError(false);
 
     try {
-      const list = await listRecipes();
+      const list = await listRecipes(currentUserId);
 
       console.log("currentUserId", currentUserId);
       console.log("list[0]", list[0]);

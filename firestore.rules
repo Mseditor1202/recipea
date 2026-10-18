@@ -59,13 +59,35 @@ match /users/{userId} {
         && request.resource.data.userId == request.auth.uid;
     }
 
-    match /weeklyDaySets/{id} {
-      allow create: if createsOwn();
-      allow read, delete: if ownsExisting();
-      allow update:
-        if ownsExisting()
-        && request.resource.data.userId == request.auth.uid;
-    }
+match /weeklyDaySets/{id} {
+  function isOwnWeeklyId() {
+    return signedIn()
+      && id.matches('^' + request.auth.uid + '_.*$');
+  }
+
+  allow create:
+    if isOwnWeeklyId()
+    && request.resource.data.userId == request.auth.uid;
+
+  allow get:
+    if isOwnWeeklyId()
+    && (
+      !exists(/databases/$(database)/documents/weeklyDaySets/$(id))
+      || resource.data.userId == request.auth.uid
+    );
+
+  allow list:
+    if ownsExisting();
+
+  allow delete:
+    if isOwnWeeklyId()
+    && ownsExisting();
+
+  allow update:
+    if isOwnWeeklyId()
+    && ownsExisting()
+    && request.resource.data.userId == request.auth.uid;
+}
 
     match /fridgeLots/{id} {
       allow create: if createsOwn();
