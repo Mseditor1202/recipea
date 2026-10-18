@@ -1,4 +1,5 @@
 // src/pages/recipes/dailyset/create.js
+import { useRouter } from "next/router";
 import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/layout/AppLayout";
 import React, { useEffect, useState } from "react";
@@ -24,6 +25,7 @@ import {
 } from "@mui/material";
 
 export default function CreateDailySet() {
+  const router = useRouter();
   const { user } = useAuth();
   const [recipes, setRecipes] = useState([]);
   const [setName, setSetName] = useState("");
@@ -80,6 +82,7 @@ export default function CreateDailySet() {
       updatedAt: serverTimestamp(),
     });
 
+    await router.push("/recipes/dailyset");
     alert("レシピセットを作成しました！");
 
     // 入力内容クリア
