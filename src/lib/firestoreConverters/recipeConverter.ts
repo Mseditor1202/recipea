@@ -10,8 +10,10 @@ import type {
 
 type RecipeFirestore = {
   userId: string;
-  title: string;
+  title?: string;
+  recipeName?: string;
   imageUrl?: string;
+  category?: "staple" | "main" | "side" | "soup";
   tags?: string[];
   memo?: string;
   createdAt?: Timestamp;
@@ -41,8 +43,9 @@ export const recipeConverter: FirestoreDataConverter<Recipe> = {
     return {
       id: snapshot.id,
       userId: data.userId ?? "",
-      title: data.title ?? "",
+      title: data.title ?? data.recipeName ?? "",
       imageUrl: data.imageUrl,
+      category: data.category,
       tags: data.tags ?? [],
       memo: data.memo,
       createdAt: data.createdAt,
