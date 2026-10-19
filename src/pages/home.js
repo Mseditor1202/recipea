@@ -19,8 +19,6 @@ import {
   Snackbar,
   Alert,
   CircularProgress,
-  Drawer,
-  TextField,
 } from "@mui/material";
 import {
   collection,
@@ -36,6 +34,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { listRecipes } from "@/features/recipes";
+import RecipeSelectionDrawer from "@/features/recipes/components/RecipeSelectionDrawer";
+import MealRecipeGrid from "@/features/recipes/components/MealRecipeGrid";
 
 const DEFAULT_IMAGE = "/images/default-recipe.png";
 
@@ -1011,116 +1011,14 @@ function MealSlidePanelV2({
           borderTop: "1px solid #eef1f6",
         }}
       >
-        {loadingRange ? (
-          <Grid container spacing={2}>
-            {SLOT_ORDER.map((s) => (
-              <Grid item xs={12} sm={6} key={s}>
-                <Box sx={{ borderRadius: 2.6, overflow: "hidden" }}>
-                  <Skeleton variant="rectangular" height={150} />
-                  <Box sx={{ p: 1.4 }}>
-                    <Skeleton width="40%" />
-                    <Skeleton width="80%" />
-                  </Box>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        ) : (
-          <Grid container spacing={2}>
-            {SLOT_ORDER.map((slotKey) => {
-              const recipeId = mealData?.[slotKey] || null;
-              const recipe = recipeId ? recipesById?.[recipeId] : null;
-
-              const img = recipe?.imageUrl || DEFAULT_IMAGE;
-              const name = recipe?.recipeName || "未登録";
-              const clickable = !!recipeId;
-
-              return (
-                <Grid
-                  item
-                  xs={12}
-                  sm={6}
-                  sx={{ width: 320, maxWidth: 320 }}
-                  key={slotKey}
-                >
-                  <Card
-                    sx={{
-                      borderRadius: 2.6,
-                      border: "1px solid #e7ebf3",
-                      overflow: "hidden",
-                      bgcolor: "#fff",
-                      boxShadow: "0 10px 18px rgba(15, 23, 42, 0.06)",
-                      cursor: clickable ? "pointer" : "default",
-                      transition: "transform 120ms ease",
-                      "&:hover": clickable
-                        ? { transform: "translateY(-2px)" }
-                        : {},
-                    }}
-                    onClick={() => {
-                      if (!recipeId) return;
-                      window.location.href = `/recipes/${recipeId}?from=home`;
-                    }}
-                  >
-                    <Box sx={{ position: "relative" }}>
-                      <Box
-                        component="img"
-                        src={img}
-                        alt={name}
-                        sx={{
-                          width: "100%",
-                          height: { xs: 140, sm: 150 },
-                          objectFit: "cover",
-                          filter: recipeId ? "none" : "grayscale(0.35)",
-                        }}
-                      />
-                      <Box
-                        sx={{
-                          position: "absolute",
-                          top: 10,
-                          left: 10,
-                          px: 1.6,
-                          py: 0.65,
-                          borderRadius: 999,
-                          bgcolor: "rgba(255,255,255,0.96)",
-                          border: "1px solid rgba(0,0,0,0.08)",
-                          fontWeight: 950,
-                          fontSize: 13,
-                          lineHeight: 1,
-                          boxShadow: "0 6px 14px rgba(15, 23, 42, 0.10)",
-                        }}
-                      >
-                        {SLOT_LABEL[slotKey]}
-                      </Box>
-                    </Box>
-
-                    <Box
-                      sx={{
-                        px: 1.6,
-                        py: 1.2,
-                        bgcolor: "#fff",
-                        borderTop: "1px solid #eef1f6",
-                      }}
-                    >
-                      <Typography
-                        sx={{
-                          fontWeight: 500,
-                          fontSize: 16,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          opacity: recipeId ? 1 : 0.55,
-                        }}
-                        title={name}
-                      >
-                        {name}
-                      </Typography>
-                    </Box>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
-        )}
+        <MealRecipeGrid
+          mealData={mealData}
+          recipesById={recipesById}
+          loading={loadingRange}
+          onRecipeClick={(recipeId) => {
+            window.location.href = `/recipes/${recipeId}?from=home`;
+          }}
+        />
       </Box>
 
       {/* Big button */}
@@ -1631,27 +1529,6 @@ export default function HomeTodayMenu() {
         mealEditTarget.slotKey
       ] || null
     : null;
-
-  const currentRecipe = currentRecipeId
-    ? selectableRecipes.find((recipe) => recipe.id === currentRecipeId) ||
-      recipesById?.[currentRecipeId] ||
-      null
-    : null;
-
-  const filteredRecipes = selectableRecipes.filter((recipe) => {
-    const query = recipeSearchQuery.trim().toLowerCase();
-    const selectedCategory = mealEditTarget?.slotKey;
-
-    const matchesCategory = selectedCategory
-      ? recipe.category === selectedCategory
-      : true;
-
-    const matchesSearch = query
-      ? (recipe.title || "").toLowerCase().includes(query)
-      : true;
-
-    return matchesCategory && matchesSearch;
-  });
 
   const recentRecipes = useMemo(() => {
     const recentKeys = rangeKeys.slice(-14).reverse();
@@ -2202,371 +2079,37 @@ export default function HomeTodayMenu() {
           </Box>
         </Box>
 
-        <Drawer
-          anchor="right"
+        <RecipeSelectionDrawer
           open={!!mealEditTarget}
+          mealLabel={mealEditTarget ? MEAL_LABEL[mealEditTarget.mealKey] : ""}
+          selectedSlot={mealEditTarget?.slotKey || "staple"}
+          recipes={selectableRecipes}
+          currentRecipeId={currentRecipeId}
+          searchQuery={recipeSearchQuery}
+          busy={actionBusy}
           onClose={() => setMealEditTarget(null)}
-        >
-          <Box
-            sx={{
-              width: { xs: "100vw", sm: 420 },
-              maxWidth: "100vw",
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              bgcolor: "#FFFDFA",
-            }}
-          >
-            <Box
-              sx={{
-                px: 2.5,
-                py: 2,
-                borderBottom: "1px solid #EEEEEE",
-                bgcolor: "#FFFFFF",
-              }}
-            >
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                spacing={2}
-              >
-                <Box>
-                  <Typography
-                    component="h2"
-                    sx={{
-                      fontSize: 18,
-                      fontWeight: 700,
-                      color: "#333333",
-                    }}
-                  >
-                    献立を編集
-                  </Typography>
+          onChangeSlot={(slotKey) => {
+            setMealEditTarget((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    slotKey,
+                  }
+                : prev,
+            );
+          }}
+          onChangeSearchQuery={setRecipeSearchQuery}
+          onSelectRecipe={saveSlotRecipe}
+          onRemoveRecipe={() => {
+            if (!mealEditTarget) return;
 
-                  {mealEditTarget && (
-                    <Box
-                      sx={{
-                        mt: 1.2,
-                        px: 1.5,
-                        py: 1.1,
-                        borderRadius: 2.5,
-                        bgcolor: "#FFF3E0",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 1,
-                      }}
-                    >
-                      <Box
-                        component="img"
-                        src={MEAL_ICON[mealEditTarget.mealKey]}
-                        alt={MEAL_LABEL[mealEditTarget.mealKey]}
-                        sx={{
-                          width: 28,
-                          height: 28,
-                          flexShrink: 0,
-                        }}
-                      />
-
-                      <Typography
-                        sx={{
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: "#333333",
-                        }}
-                      >
-                        {MEAL_LABEL[mealEditTarget.mealKey]} /{" "}
-                        {SLOT_LABEL[mealEditTarget.slotKey]}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-
-                <Button
-                  type="button"
-                  onClick={() => setMealEditTarget(null)}
-                  sx={{
-                    minWidth: "auto",
-                    color: "#777777",
-                    textTransform: "none",
-                  }}
-                >
-                  閉じる
-                </Button>
-              </Stack>
-            </Box>
-
-            <Box
-              sx={{
-                flex: 1,
-                overflowY: "auto",
-                p: 2.5,
-              }}
-            >
-              <Stack spacing={2}>
-                {currentRecipe && (
-                  <Box>
-                    <Typography
-                      sx={{
-                        mb: 1,
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: "#333333",
-                      }}
-                    >
-                      現在のレシピ
-                    </Typography>
-
-                    <Card
-                      sx={{
-                        borderRadius: 3,
-                        border: "1px solid #F1E6D7",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-                        bgcolor: "#FFFFFF",
-                      }}
-                    >
-                      <Stack
-                        direction="row"
-                        alignItems="center"
-                        spacing={1.5}
-                        sx={{ p: 1.5 }}
-                      >
-                        <Box
-                          component="img"
-                          src={currentRecipe.imageUrl || DEFAULT_IMAGE}
-                          alt={currentRecipe.title || "料理画像"}
-                          sx={{
-                            width: 72,
-                            height: 72,
-                            borderRadius: 2,
-                            objectFit: "cover",
-                            flexShrink: 0,
-                            bgcolor: "#F7F7F7",
-                          }}
-                        />
-
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography
-                            sx={{
-                              fontSize: 15,
-                              fontWeight: 700,
-                              color: "#333333",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {currentRecipe.title || "料理名未設定"}
-                          </Typography>
-
-                          <Box
-                            sx={{
-                              mt: 0.8,
-                              display: "inline-flex",
-                              alignItems: "center",
-                              px: 1,
-                              py: 0.35,
-                              borderRadius: 999,
-                              bgcolor: "#FFF3E0",
-                              color: "#D98300",
-                              fontSize: 11,
-                              fontWeight: 700,
-                            }}
-                          >
-                            選択中
-                          </Box>
-                        </Box>
-                        <Button
-                          type="button"
-                          variant="outlined"
-                          disabled={actionBusy}
-                          onClick={() => {
-                            if (!mealEditTarget) return;
-
-                            deleteSlotRecipe(
-                              mealEditTarget.dayKey,
-                              mealEditTarget.mealKey,
-                              mealEditTarget.slotKey,
-                            );
-                          }}
-                          sx={{
-                            mt: 0.8,
-                            minWidth: "auto",
-                            px: 1.8,
-                            py: 0.9,
-                            borderRadius: 2,
-                            borderColor: "#D9D9D9",
-                            bgcolor: "#FFFFFF",
-                            color: "#666666",
-                            textTransform: "none",
-                            fontSize: 13,
-                            fontWeight: 700,
-                            lineHeight: 1,
-                            "&:hover": {
-                              borderColor: "#BDBDBD",
-                              bgcolor: "#FAFAFA",
-                            },
-                          }}
-                        >
-                          献立から外す
-                        </Button>
-                      </Stack>
-                    </Card>
-                  </Box>
-                )}
-                <Stack direction="row" spacing={1} flexWrap="wrap">
-                  {SLOT_ORDER.map((slotKey) => (
-                    <Button
-                      key={slotKey}
-                      type="button"
-                      variant={
-                        mealEditTarget?.slotKey === slotKey
-                          ? "contained"
-                          : "outlined"
-                      }
-                      onClick={() =>
-                        setMealEditTarget((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                slotKey,
-                              }
-                            : prev,
-                        )
-                      }
-                      sx={{
-                        minWidth: 72,
-                        borderRadius: 999,
-                        textTransform: "none",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {SLOT_LABEL[slotKey]}
-                    </Button>
-                  ))}
-                </Stack>
-                <TextField
-                  fullWidth
-                  size="small"
-                  value={recipeSearchQuery}
-                  onChange={(e) => setRecipeSearchQuery(e.target.value)}
-                  placeholder="レシピを検索"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: 2.5,
-                      bgcolor: "#FFFFFF",
-                      fontSize: 14,
-                    },
-                  }}
-                />
-
-                <Typography
-                  sx={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: "#333333",
-                  }}
-                >
-                  レシピを選ぶ
-                </Typography>
-
-                <Stack spacing={1}>
-                  {filteredRecipes.map((recipe) => {
-                    const isSelected = recipe.id === currentRecipeId;
-
-                    return (
-                      <Button
-                        key={recipe.id}
-                        type="button"
-                        variant="outlined"
-                        onClick={() => saveSlotRecipe(recipe.id)}
-                        disabled={actionBusy}
-                        sx={{
-                          justifyContent: "flex-start",
-                          textTransform: "none",
-                          borderRadius: 3,
-                          color: "#333333",
-                          borderColor: isSelected ? "#FFB830" : "#E8E8E8",
-                          borderWidth: isSelected ? 2 : 1,
-                          py: 1,
-                          px: 1.2,
-                          bgcolor: isSelected ? "#FFF8ED" : "#FFFFFF",
-                          boxShadow: isSelected
-                            ? "0 4px 12px rgba(255, 184, 48, 0.18)"
-                            : "none",
-                          "&:hover": {
-                            borderColor: "#FFB830",
-                            bgcolor: isSelected ? "#FFF8ED" : "#FFFDF8",
-                          },
-                        }}
-                      >
-                        <Stack
-                          direction="row"
-                          spacing={1.2}
-                          alignItems="center"
-                          sx={{ width: "100%" }}
-                        >
-                          <Box
-                            component="img"
-                            src={recipe.imageUrl || DEFAULT_IMAGE}
-                            alt={
-                              recipe.title || recipe.recipeName || "料理画像"
-                            }
-                            sx={{
-                              width: 72,
-                              height: 72,
-                              borderRadius: 2,
-                              objectFit: "cover",
-                              flexShrink: 0,
-                              bgcolor: "#F7F7F7",
-                            }}
-                          />
-
-                          <Box sx={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                            <Typography
-                              sx={{
-                                fontSize: 15,
-                                fontWeight: 700,
-                                color: "#333333",
-                                lineHeight: 1.4,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {recipe.title ||
-                                recipe.recipeName ||
-                                "料理名未設定"}
-                            </Typography>
-                          </Box>
-
-                          {isSelected && (
-                            <Box
-                              sx={{
-                                ml: 1,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                px: 1.2,
-                                py: 0.45,
-                                borderRadius: 999,
-                                bgcolor: "#FFB830",
-                                color: "#FFFFFF",
-                                fontSize: 12,
-                                fontWeight: 700,
-                                flexShrink: 0,
-                              }}
-                            >
-                              選択中
-                            </Box>
-                          )}
-                        </Stack>
-                      </Button>
-                    );
-                  })}
-                </Stack>
-              </Stack>
-            </Box>
-          </Box>
-        </Drawer>
+            deleteSlotRecipe(
+              mealEditTarget.dayKey,
+              mealEditTarget.mealKey,
+              mealEditTarget.slotKey,
+            );
+          }}
+        />
 
         <Snackbar
           open={toast.open}
