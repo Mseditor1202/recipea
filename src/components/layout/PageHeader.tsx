@@ -1,4 +1,5 @@
 import { Box, Typography } from "@mui/material";
+import BrandLogo from "@/components/common/BrandLogo";
 
 type PageHeaderProps = {
   title: string;
@@ -10,18 +11,26 @@ export default function PageHeader({ title }: PageHeaderProps) {
       component="header"
       sx={{
         px: 2,
-        py: 2,
+        py: 1.5,
         bgcolor: "background.paper",
         borderBottom: "1px solid",
         borderColor: "rgba(51, 51, 51, 0.06)",
       }}
     >
+      <BrandLogo />
+
       <Typography
         component="h1"
         sx={{
-          fontSize: 18,
-          fontWeight: 700,
-          color: "text.primary",
+          position: "absolute",
+          width: 1,
+          height: 1,
+          p: 0,
+          m: -1,
+          overflow: "hidden",
+          clip: "rect(0, 0, 0, 0)",
+          whiteSpace: "nowrap",
+          border: 0,
         }}
       >
         {title}

@@ -1,5 +1,6 @@
-import { Box, Button, Stack, Typography } from "@mui/material";
+import { Box, Button, Stack } from "@mui/material";
 import NextLink from "next/link";
+import BrandLogo from "@/components/common/BrandLogo";
 
 export default function LpHeader() {
   return (
@@ -25,18 +26,7 @@ export default function LpHeader() {
           justifyContent: "space-between",
         }}
       >
-        <Typography
-          component={NextLink}
-          href="/"
-          sx={{
-            color: "text.primary",
-            fontWeight: 700,
-            fontSize: 18,
-            textDecoration: "none",
-          }}
-        >
-          🍲 ラクするごはん
-        </Typography>
+        <BrandLogo href="/" />
 
         <Stack direction="row" spacing={1.5}>
           <Button
