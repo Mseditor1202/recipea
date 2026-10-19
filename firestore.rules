@@ -59,6 +59,14 @@ match /users/{userId} {
         && request.resource.data.userId == request.auth.uid;
     }
 
+    match /zuboraSets/{id} {
+      allow create: if createsOwn();
+      allow read, delete: if ownsExisting();
+      allow update:
+        if ownsExisting()
+        && request.resource.data.userId == request.auth.uid;
+    }
+
 match /weeklyDaySets/{id} {
   function isOwnWeeklyId() {
     return signedIn()

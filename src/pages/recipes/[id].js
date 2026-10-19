@@ -104,11 +104,15 @@ export default function RecipeDetailPage() {
 
   const backHref = safeBack ?? (from === "home" ? "/home" : "/recipes");
 
-  const backLabel = safeBack
-    ? "レシピ一覧に戻る"
-    : from === "home"
-      ? "ホームに戻る"
-      : "レシピ一覧に戻る";
+  const backLabel = safeBack?.startsWith("/recipes/zubora/edit/")
+    ? "ズボラセット編集に戻る"
+    : safeBack?.startsWith("/recipes/zubora/")
+      ? "ズボラセットに戻る"
+      : safeBack
+        ? "レシピ一覧に戻る"
+        : from === "home"
+          ? "ホームに戻る"
+          : "レシピ一覧に戻る";
 
   const [recipe, setRecipe] = useState(null);
   const [loading, setLoading] = useState(true);
