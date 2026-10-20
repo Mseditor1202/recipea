@@ -9,6 +9,7 @@ type AppLayoutProps = {
   title: string;
   backHref?: string;
   activeNav?: "home" | "meal" | "create" | "recipes" | "mypage";
+  showBottomNavigation?: boolean;
 };
 
 export default function AppLayout({
@@ -16,6 +17,7 @@ export default function AppLayout({
   title,
   backHref,
   activeNav,
+  showBottomNavigation = true,
 }: AppLayoutProps) {
   const { loading } = useRequireAuth();
   if (loading) {
@@ -39,7 +41,7 @@ export default function AppLayout({
         {children}
       </Box>
 
-      <BottomNavigation activeNav={activeNav} />
+      {showBottomNavigation && <BottomNavigation activeNav={activeNav} />}
     </Box>
   );
 }
