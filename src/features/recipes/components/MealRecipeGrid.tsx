@@ -54,7 +54,7 @@ export default function MealRecipeGrid({
 
         if (loading) {
           return (
-            <Grid item xs={12} sm={6} key={slotKey}>
+            <Grid size={{ xs: 12, sm: 3 }} key={slotKey}>
               <Box sx={{ borderRadius: 2.6, overflow: "hidden" }}>
                 <Skeleton variant="rectangular" height={150} />
                 <Box sx={{ p: 1.4 }}>
@@ -68,14 +68,14 @@ export default function MealRecipeGrid({
 
         if (!recipeId || !recipe) {
           return (
-            <Grid item xs={12} sm={6} key={slotKey}>
+            <Grid size={{ xs: 12, sm: 3 }} key={slotKey}>
               <Box
                 component={onSelectSlot ? "button" : "div"}
                 type={onSelectSlot ? "button" : undefined}
                 onClick={onSelectSlot ? () => onSelectSlot(slotKey) : undefined}
                 sx={{
                   width: "100%",
-                  minHeight: 190,
+                  minHeight: 150,
                   border: "1px dashed #F2C98C",
                   borderRadius: 3,
                   bgcolor: "#FFFDFA",
@@ -118,7 +118,28 @@ export default function MealRecipeGrid({
                       fontWeight: 700,
                     }}
                   >
-                    {SLOT_LABEL[slotKey]}：未登録
+                    <>
+                      <Typography
+                        component="span"
+                        sx={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: "#555555",
+                        }}
+                      >
+                        {SLOT_LABEL[slotKey]}
+                      </Typography>
+
+                      <Typography
+                        component="span"
+                        sx={{
+                          fontSize: 12,
+                          color: "#999999",
+                        }}
+                      >
+                        ：未登録
+                      </Typography>
+                    </>
                   </Typography>
                 )}
               </Box>
@@ -130,7 +151,7 @@ export default function MealRecipeGrid({
         const img = recipe.imageUrl || DEFAULT_IMAGE;
 
         return (
-          <Grid item xs={12} sm={6} key={slotKey}>
+          <Grid size={{ xs: 12, sm: 3 }} key={slotKey}>
             <Card
               onClick={() => onRecipeClick?.(recipeId)}
               sx={{
@@ -155,7 +176,7 @@ export default function MealRecipeGrid({
                   alt={name}
                   sx={{
                     width: "100%",
-                    height: { xs: 140, sm: 150 },
+                    height: { xs: 130, sm: 130 },
                     objectFit: "cover",
                   }}
                 />
@@ -181,7 +202,7 @@ export default function MealRecipeGrid({
               <Box
                 sx={{
                   px: 1.6,
-                  py: 1.2,
+                  py: 1,
                   bgcolor: "#fff",
                   borderTop: "1px solid #eef1f6",
                 }}

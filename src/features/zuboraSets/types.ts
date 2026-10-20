@@ -12,6 +12,7 @@ export type ZuboraSet = {
   userId: string;
   name: string;
   description?: string;
+  tags?: string[];
   category: "standard" | "quick" | "saving" | "other";
 
   meals: {
