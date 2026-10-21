@@ -4,9 +4,14 @@ import BrandLogo from "@/components/common/BrandLogo";
 type PageHeaderProps = {
   title: string;
   backHref?: string;
+  onBack?: () => void;
 };
 
-export default function PageHeader({ title, backHref }: PageHeaderProps) {
+export default function PageHeader({
+  title,
+  backHref,
+  onBack,
+}: PageHeaderProps) {
   return (
     <Box
       component="header"
@@ -30,6 +35,11 @@ export default function PageHeader({ title, backHref }: PageHeaderProps) {
       >
         <IconButton
           onClick={() => {
+            if (onBack) {
+              onBack();
+              return;
+            }
+
             if (backHref) {
               window.location.href = backHref;
             } else {

@@ -8,6 +8,7 @@ type AppLayoutProps = {
   children: ReactNode;
   title: string;
   backHref?: string;
+  onBack?: () => void;
   activeNav?: "home" | "meal" | "create" | "recipes" | "mypage";
   showBottomNavigation?: boolean;
 };
@@ -16,6 +17,7 @@ export default function AppLayout({
   children,
   title,
   backHref,
+  onBack,
   activeNav,
   showBottomNavigation = true,
 }: AppLayoutProps) {
@@ -30,7 +32,7 @@ export default function AppLayout({
         bgcolor: "background.default",
       }}
     >
-      <PageHeader title={title} backHref={backHref} />
+      <PageHeader title={title} backHref={backHref} onBack={onBack} />
 
       <Box
         component="main"

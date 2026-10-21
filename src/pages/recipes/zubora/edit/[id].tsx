@@ -47,6 +47,7 @@ export default function ZuboraSetEditPage() {
   const [saving, setSaving] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [mealEditTarget, setMealEditTarget] = useState<{
     meal: "breakfast" | "lunch" | "dinner";
     slot: "staple" | "main" | "side" | "soup";
@@ -211,6 +212,16 @@ export default function ZuboraSetEditPage() {
 
     setMealEditTarget(null);
   };
+
+  const handleBack = () => {
+    if (isDirty) {
+      setLeaveDialogOpen(true);
+      return;
+    }
+
+    router.push(`/recipes/zubora/${zuboraSet?.id}`);
+  };
+
   const handleDelete = async () => {
     if (typeof id !== "string") {
       return;
@@ -237,6 +248,7 @@ export default function ZuboraSetEditPage() {
     <AppLayout
       title="ズボラセットを編集"
       backHref={`/recipes/zubora/${zuboraSet.id}`}
+      onBack={handleBack}
       activeNav="recipes"
       showBottomNavigation={false}
     >
@@ -681,6 +693,54 @@ export default function ZuboraSetEditPage() {
             horizontal: "center",
           }}
         />
+
+        <Dialog
+          open={leaveDialogOpen}
+          onClose={() => setLeaveDialogOpen(false)}
+        >
+          <DialogTitle>変更内容を破棄しますか？</DialogTitle>
+
+          <DialogContent>
+            <DialogContentText>
+              保存していない変更があります。このまま戻ると変更内容は失われます。
+            </DialogContentText>
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              type="button"
+              onClick={() => setLeaveDialogOpen(false)}
+              sx={{
+                color: "#666666",
+                fontWeight: 700,
+              }}
+            >
+              編集を続ける
+            </Button>
+
+            <Button
+              type="button"
+              variant="contained"
+              onClick={() => {
+                setLeaveDialogOpen(false);
+                router.push(`/recipes/zubora/${zuboraSet.id}`);
+              }}
+              sx={{
+                bgcolor: "#F44336",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                boxShadow: "none",
+                "&:hover": {
+                  bgcolor: "#D32F2F",
+                  boxShadow: "none",
+                },
+              }}
+            >
+              破棄して戻る
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         <Dialog
           open={deleteDialogOpen}
           onClose={() => setDeleteDialogOpen(false)}
