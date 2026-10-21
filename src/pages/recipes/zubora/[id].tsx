@@ -177,9 +177,13 @@ export default function ZuboraSetDetailPage() {
     }
   };
   return (
-    <AppLayout title="ズボラセット詳細" activeNav="recipes">
+    <AppLayout
+      title="ズボラセット詳細"
+      backHref="/recipes/zubora"
+      activeNav="recipes"
+      showBottomNavigation={false}
+    >
       <Box
-        component="main"
         sx={{
           maxWidth: 760,
           mx: "auto",
