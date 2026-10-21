@@ -174,9 +174,7 @@ export default function ZuboraSetListPage() {
                   .filter(Boolean)
                   .map((recipeId) => {
                     const recipe = recipeId ? recipesById[recipeId] : null;
-                    return (
-                      recipe?.recipeName || recipe?.title || "料理名未設定"
-                    );
+                    return recipe?.title || "料理名未設定";
                   });
 
               const breakfastNames = getMealRecipeNames(set.meals.breakfast);
