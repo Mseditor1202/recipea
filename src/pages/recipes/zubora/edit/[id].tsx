@@ -7,8 +7,6 @@ import {
   getZuboraSet,
   updateZuboraSet,
   deleteZuboraSet,
-  setZuboraSetRecipeSlot,
-  clearZuboraSetRecipeSlot,
 } from "@/features/zuboraSets/repositories/zuboraSetRepository";
 import {
   Box,
@@ -52,7 +50,6 @@ export default function ZuboraSetEditPage() {
   } | null>(null);
 
   const [recipeSearchQuery, setRecipeSearchQuery] = useState("");
-  const [recipeSaving, setRecipeSaving] = useState(false);
   const [recipes, setRecipes] = useState<
     Awaited<ReturnType<typeof listRecipes>>
   >([]);
@@ -123,7 +120,7 @@ export default function ZuboraSetEditPage() {
 
     const user = auth.currentUser;
 
-    if (!user || !name.trim() || !hasAtLeastOneRecipe) {
+    if (!user || !zuboraSet || !name.trim() || !hasAtLeastOneRecipe) {
       return;
     }
 
@@ -135,6 +132,7 @@ export default function ZuboraSetEditPage() {
         description: description.trim(),
         tags,
         category,
+        meals: zuboraSet.meals,
       });
 
       setZuboraSet((prev) =>
@@ -155,75 +153,48 @@ export default function ZuboraSetEditPage() {
       setSaving(false);
     }
   };
-  const handleClearRecipeSlot = async (
+  const handleClearRecipeSlot = (
     meal: "breakfast" | "lunch" | "dinner",
     slot: "staple" | "main" | "side" | "soup",
   ) => {
-    if (typeof id !== "string") {
-      return;
-    }
-
-    try {
-      await clearZuboraSetRecipeSlot(id, meal, slot);
-
-      setZuboraSet((prev) =>
-        prev
-          ? {
-              ...prev,
-              meals: {
-                ...prev.meals,
-                [meal]: {
-                  ...prev.meals[meal],
-                  [slot]: null,
-                },
+    setZuboraSet((prev) =>
+      prev
+        ? {
+            ...prev,
+            meals: {
+              ...prev.meals,
+              [meal]: {
+                ...prev.meals[meal],
+                [slot]: null,
               },
-            }
-          : prev,
-      );
-    } catch (error) {
-      console.error("レシピを外す処理に失敗しました", error);
-    }
+            },
+          }
+        : prev,
+    );
+
+    setMealEditTarget(null);
   };
-  const handleSelectRecipe = async (recipeId: string) => {
-    if (typeof id !== "string" || !mealEditTarget || !recipeId || !zuboraSet) {
+  const handleSelectRecipe = (recipeId: string) => {
+    if (!mealEditTarget || !recipeId || !zuboraSet) {
       return;
     }
 
-    const user = auth.currentUser;
-
-    if (!user) {
-      return;
-    }
-
-    setRecipeSaving(true);
-
-    try {
-      await setZuboraSetRecipeSlot(
-        id,
-        mealEditTarget.meal,
-        mealEditTarget.slot,
-        recipeId,
-      );
-
-      setZuboraSet((prev) =>
-        prev
-          ? {
-              ...prev,
-              meals: {
-                ...prev.meals,
-                [mealEditTarget.meal]: {
-                  ...prev.meals[mealEditTarget.meal],
-                  [mealEditTarget.slot]: recipeId,
-                },
+    setZuboraSet((prev) =>
+      prev
+        ? {
+            ...prev,
+            meals: {
+              ...prev.meals,
+              [mealEditTarget.meal]: {
+                ...prev.meals[mealEditTarget.meal],
+                [mealEditTarget.slot]: recipeId,
               },
-            }
-          : prev,
-      );
-    } catch (error) {
-      console.error("レシピの設定に失敗しました", error);
-    } finally {
-      setRecipeSaving(false);
-    }
+            },
+          }
+        : prev,
+    );
+
+    setMealEditTarget(null);
   };
   const handleDelete = async () => {
     if (typeof id !== "string") {
@@ -662,7 +633,6 @@ export default function ZuboraSetEditPage() {
           recipes={recipes}
           currentRecipeId={currentRecipeId}
           searchQuery={recipeSearchQuery}
-          busy={recipeSaving}
           onClose={() => setMealEditTarget(null)}
           onChangeSlot={(slotKey) => {
             setMealEditTarget((prev) =>
