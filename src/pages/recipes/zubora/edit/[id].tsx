@@ -33,6 +33,9 @@ export default function ZuboraSetEditPage() {
   const { id } = router.query;
 
   const [zuboraSet, setZuboraSet] = useState<ZuboraSet | null>(null);
+  const [initialZuboraSet, setInitialZuboraSet] = useState<ZuboraSet | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -67,6 +70,16 @@ export default function ZuboraSetEditPage() {
     ? zuboraSet?.meals[mealEditTarget.meal]?.[mealEditTarget.slot] || null
     : null;
 
+  const isDirty =
+    !!initialZuboraSet &&
+    !!zuboraSet &&
+    (name !== initialZuboraSet.name ||
+      description !== (initialZuboraSet.description ?? "") ||
+      category !== initialZuboraSet.category ||
+      JSON.stringify(tags) !== JSON.stringify(initialZuboraSet.tags ?? []) ||
+      JSON.stringify(zuboraSet.meals) !==
+        JSON.stringify(initialZuboraSet.meals));
+
   useEffect(() => {
     if (!router.isReady || typeof id !== "string") {
       return;
@@ -85,6 +98,7 @@ export default function ZuboraSetEditPage() {
         ]);
 
         setZuboraSet(data);
+        setInitialZuboraSet(data);
         setRecipes(recipeList);
         if (data) {
           setName(data.name);
@@ -135,17 +149,17 @@ export default function ZuboraSetEditPage() {
         meals: zuboraSet.meals,
       });
 
-      setZuboraSet((prev) =>
-        prev
-          ? {
-              ...prev,
-              name: name.trim(),
-              description: description.trim(),
-              tags,
-              category,
-            }
-          : prev,
-      );
+      const savedZuboraSet: ZuboraSet = {
+        ...zuboraSet,
+        name: name.trim(),
+        description: description.trim(),
+        tags,
+        category,
+        meals: zuboraSet.meals,
+      };
+
+      setZuboraSet(savedZuboraSet);
+      setInitialZuboraSet(savedZuboraSet);
       setSnackbarOpen(true);
     } catch (error) {
       console.error("ズボラセットの更新に失敗しました", error);
@@ -153,6 +167,7 @@ export default function ZuboraSetEditPage() {
       setSaving(false);
     }
   };
+
   const handleClearRecipeSlot = (
     meal: "breakfast" | "lunch" | "dinner",
     slot: "staple" | "main" | "side" | "soup",
@@ -574,7 +589,9 @@ export default function ZuboraSetEditPage() {
             variant="contained"
             fullWidth
             onClick={handleSave}
-            disabled={saving || !name.trim() || !hasAtLeastOneRecipe}
+            disabled={
+              saving || !isDirty || !name.trim() || !hasAtLeastOneRecipe
+            }
             sx={{
               py: 1.6,
               borderRadius: 3,
