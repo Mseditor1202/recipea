@@ -10,9 +10,24 @@ import {
   setZuboraSetRecipeSlot,
   clearZuboraSetRecipeSlot,
 } from "@/features/zuboraSets/repositories/zuboraSetRepository";
+import {
+  Box,
+  Button,
+  Chip,
+  Snackbar,
+  Stack,
+  TextField,
+  Typography,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+} from "@mui/material";
 import type { ZuboraSet } from "@/features/zuboraSets/types";
 import MealRecipeGrid from "@/features/recipes/components/MealRecipeGrid";
 import RecipeSelectionDrawer from "@/features/recipes/components/RecipeSelectionDrawer";
+import AppLayout from "@/components/layout/AppLayout";
 import { listRecipes } from "@/features/recipes/repositories/recipeRepo";
 
 export default function ZuboraSetEditPage() {
@@ -23,10 +38,14 @@ export default function ZuboraSetEditPage() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [category, setCategory] = useState<
     "standard" | "quick" | "saving" | "other"
   >("standard");
   const [saving, setSaving] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [mealEditTarget, setMealEditTarget] = useState<{
     meal: "breakfast" | "lunch" | "dinner";
     slot: "staple" | "main" | "side" | "soup";
@@ -73,6 +92,7 @@ export default function ZuboraSetEditPage() {
         if (data) {
           setName(data.name);
           setDescription(data.description ?? "");
+          setTags(data.tags ?? []);
           setCategory(data.category);
         }
       } catch (error) {
@@ -84,6 +104,18 @@ export default function ZuboraSetEditPage() {
 
     return unsubscribe;
   }, [router.isReady, id]);
+
+  const handleAddTag = () => {
+    const value = tagInput.trim();
+
+    if (!value || tags.includes(value) || tags.length >= 3) {
+      return;
+    }
+
+    setTags((prev) => [...prev, value]);
+    setTagInput("");
+  };
+
   const handleSave = async () => {
     if (typeof id !== "string") {
       return;
@@ -101,6 +133,7 @@ export default function ZuboraSetEditPage() {
       await updateZuboraSet(id, user.uid, {
         name: name.trim(),
         description: description.trim(),
+        tags,
         category,
       });
 
@@ -110,10 +143,12 @@ export default function ZuboraSetEditPage() {
               ...prev,
               name: name.trim(),
               description: description.trim(),
+              tags,
               category,
             }
           : prev,
       );
+      setSnackbarOpen(true);
     } catch (error) {
       console.error("ズボラセットの更新に失敗しました", error);
     } finally {
@@ -195,16 +230,9 @@ export default function ZuboraSetEditPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "このズボラセットを削除しますか？この操作は取り消せません。",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     try {
       await deleteZuboraSet(id);
+      setDeleteDialogOpen(false);
       await router.push("/recipes/zubora");
     } catch (error) {
       console.error("ズボラセットの削除に失敗しました", error);
@@ -220,176 +248,494 @@ export default function ZuboraSetEditPage() {
   }
 
   return (
-    <main>
-      <h1>ズボラセット編集</h1>
-
-      <div>
-        <label>
-          セット名
-          <input value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-      </div>
-
-      <div>
-        <label>
-          説明
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </label>
-      </div>
-
-      <div>
-        <label>
-          カテゴリ
-          <select
-            value={category}
-            onChange={(e) =>
-              setCategory(
-                e.target.value as "standard" | "quick" | "saving" | "other",
-              )
-            }
-          >
-            <option value="standard">定番</option>
-            <option value="quick">時短</option>
-            <option value="saving">節約</option>
-            <option value="other">その他</option>
-          </select>
-        </label>
-      </div>
-
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving || !name.trim() || !hasAtLeastOneRecipe}
+    <AppLayout
+      title="ズボラセットを編集"
+      backHref={`/recipes/zubora/${zuboraSet.id}`}
+      activeNav="recipes"
+      showBottomNavigation={false}
+    >
+      <Box
+        sx={{
+          maxWidth: 960,
+          mx: "auto",
+          px: { xs: 2, sm: 3 },
+          py: 4,
+        }}
       >
-        {saving ? "保存中..." : "保存する"}
-      </button>
+        <TextField
+          fullWidth
+          required
+          label="セット名"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="例：平日の定番セット"
+          helperText={`${name.length}/30`}
+          slotProps={{
+            htmlInput: {
+              maxLength: 30,
+            },
+            formHelperText: {
+              sx: {
+                textAlign: "right",
+                mr: 0,
+              },
+            },
+          }}
+          sx={{ mb: 2 }}
+        />
+        <TextField
+          fullWidth
+          multiline
+          minRows={3}
+          label="説明"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="このセットを使う場面や特徴を書いておくと便利です"
+          helperText={`${description.length}/200`}
+          slotProps={{
+            htmlInput: {
+              maxLength: 200,
+            },
+            formHelperText: {
+              sx: {
+                textAlign: "right",
+                mr: 0,
+              },
+            },
+          }}
+          sx={{ mb: 3 }}
+        />
+        <Box sx={{ mb: 3 }}>
+          <Typography
+            component="p"
+            sx={{
+              mb: 1,
+              fontSize: 14,
+              fontWeight: 700,
+              color: "#333333",
+            }}
+          >
+            カテゴリ
+          </Typography>
 
-      {!hasAtLeastOneRecipe && <p>レシピを1件以上登録してください。</p>}
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {[
+              { value: "standard", label: "定番" },
+              { value: "quick", label: "時短" },
+              { value: "saving", label: "節約" },
+              { value: "other", label: "その他" },
+            ].map((item) => {
+              const selected = category === item.value;
 
-      <button type="button" onClick={handleDelete}>
-        このズボラセットを削除する
-      </button>
+              return (
+                <Chip
+                  key={item.value}
+                  label={item.label}
+                  clickable
+                  onClick={() =>
+                    setCategory(
+                      item.value as "standard" | "quick" | "saving" | "other",
+                    )
+                  }
+                  sx={{
+                    bgcolor: selected ? "#FFF3E0" : "#FFFFFF",
+                    color: "#333333",
+                    fontWeight: selected ? 700 : 400,
+                    border: selected
+                      ? "1px solid #FFB830"
+                      : "1px solid #E0E0E0",
+                  }}
+                />
+              );
+            })}
+          </Stack>
+        </Box>
+        <Box sx={{ mb: 4 }}>
+          <Typography
+            component="p"
+            sx={{
+              mb: 1,
+              fontSize: 14,
+              fontWeight: 700,
+              color: "#333333",
+            }}
+          >
+            タグ（3つまで）
+          </Typography>
 
-      <h2>朝食</h2>
-
-      <MealRecipeGrid
-        mealData={zuboraSet.meals.breakfast}
-        recipesById={recipesById}
-        onSelectSlot={(slotKey) => {
-          setMealEditTarget({
-            meal: "breakfast",
-            slot: slotKey,
-          });
-        }}
-        onEditSlot={(slotKey) => {
-          setMealEditTarget({
-            meal: "breakfast",
-            slot: slotKey,
-          });
-        }}
-        onRecipeClick={(recipeId) => {
-          const back = router.asPath;
-
-          router.push(`/recipes/${recipeId}?back=${encodeURIComponent(back)}`);
-        }}
-        onRemoveSlot={(slotKey) => {
-          handleClearRecipeSlot("breakfast", slotKey);
-        }}
-      />
-
-      <h2>昼食</h2>
-
-      <MealRecipeGrid
-        mealData={zuboraSet.meals.lunch}
-        recipesById={recipesById}
-        onSelectSlot={(slotKey) => {
-          setMealEditTarget({
-            meal: "lunch",
-            slot: slotKey,
-          });
-        }}
-        onEditSlot={(slotKey) => {
-          setMealEditTarget({
-            meal: "lunch",
-            slot: slotKey,
-          });
-        }}
-        onRecipeClick={(recipeId) => {
-          const back = router.asPath;
-
-          router.push(`/recipes/${recipeId}?back=${encodeURIComponent(back)}`);
-        }}
-        onRemoveSlot={(slotKey) => {
-          handleClearRecipeSlot("lunch", slotKey);
-        }}
-      />
-
-      <h2>夕食</h2>
-
-      <MealRecipeGrid
-        mealData={zuboraSet.meals.dinner}
-        recipesById={recipesById}
-        onSelectSlot={(slotKey) => {
-          setMealEditTarget({
-            meal: "dinner",
-            slot: slotKey,
-          });
-        }}
-        onEditSlot={(slotKey) => {
-          setMealEditTarget({
-            meal: "dinner",
-            slot: slotKey,
-          });
-        }}
-        onRecipeClick={(recipeId) => {
-          const back = router.asPath;
-
-          router.push(`/recipes/${recipeId}?back=${encodeURIComponent(back)}`);
-        }}
-        onRemoveSlot={(slotKey) => {
-          handleClearRecipeSlot("dinner", slotKey);
-        }}
-      />
-      <RecipeSelectionDrawer
-        open={!!mealEditTarget}
-        mealLabel={
-          mealEditTarget
-            ? mealEditTarget.meal === "breakfast"
-              ? "朝"
-              : mealEditTarget.meal === "lunch"
-                ? "昼"
-                : "夜"
-            : ""
-        }
-        selectedSlot={mealEditTarget?.slot ?? "staple"}
-        recipes={recipes}
-        currentRecipeId={currentRecipeId}
-        searchQuery={recipeSearchQuery}
-        busy={recipeSaving}
-        onClose={() => setMealEditTarget(null)}
-        onChangeSlot={(slotKey) => {
-          setMealEditTarget((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  slot: slotKey,
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            alignItems={{ xs: "stretch", sm: "flex-start" }}
+          >
+            <TextField
+              fullWidth
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              placeholder="例：平日"
+              disabled={tags.length >= 3}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  handleAddTag();
                 }
-              : prev,
-          );
-        }}
-        onChangeSearchQuery={setRecipeSearchQuery}
-        onSelectRecipe={handleSelectRecipe}
-        onRemoveRecipe={() => {
-          if (!mealEditTarget) {
-            return;
-          }
+              }}
+            />
 
-          handleClearRecipeSlot(mealEditTarget.meal, mealEditTarget.slot);
-        }}
-      />
-    </main>
+            <Button
+              type="button"
+              variant="outlined"
+              onClick={handleAddTag}
+              disabled={!tagInput.trim() || tags.length >= 3}
+              sx={{
+                minWidth: { xs: "100%", sm: 96 },
+                height: 56,
+                borderRadius: 3,
+                borderColor: "#FFB830",
+                color: "#333333",
+                fontWeight: 700,
+                "&:hover": {
+                  borderColor: "#F5A900",
+                  bgcolor: "#FFF8EC",
+                },
+              }}
+            >
+              追加
+            </Button>
+          </Stack>
+
+          {tags.length > 0 && (
+            <Stack
+              direction="row"
+              spacing={1}
+              flexWrap="wrap"
+              useFlexGap
+              sx={{ mt: 1.5 }}
+            >
+              {tags.map((tag) => (
+                <Chip
+                  key={tag}
+                  label={tag}
+                  onDelete={() => {
+                    setTags((prev) => prev.filter((item) => item !== tag));
+                  }}
+                />
+              ))}
+            </Stack>
+          )}
+        </Box>
+
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={1}
+          sx={{ mb: 2, mt: 1 }}
+        >
+          <Box
+            component="img"
+            src="/icons/rakusuru/content/lg_content_breakfast_time.png"
+            alt=""
+            sx={{
+              width: 36,
+              height: 36,
+              objectFit: "contain",
+            }}
+          />
+          <Typography
+            component="h2"
+            sx={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: "#333333",
+            }}
+          >
+            朝食
+          </Typography>
+        </Stack>
+
+        <MealRecipeGrid
+          mealData={zuboraSet.meals.breakfast}
+          recipesById={recipesById}
+          onSelectSlot={(slotKey) => {
+            setMealEditTarget({
+              meal: "breakfast",
+              slot: slotKey,
+            });
+          }}
+          onEditSlot={(slotKey) => {
+            setMealEditTarget({
+              meal: "breakfast",
+              slot: slotKey,
+            });
+          }}
+          onRecipeClick={(recipeId) => {
+            const back = router.asPath;
+
+            router.push(
+              `/recipes/${recipeId}?back=${encodeURIComponent(back)}`,
+            );
+          }}
+          onRemoveSlot={(slotKey) => {
+            handleClearRecipeSlot("breakfast", slotKey);
+          }}
+        />
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={1}
+          sx={{ mb: 2, mt: 4 }}
+        >
+          <Box
+            component="img"
+            src="/icons/rakusuru/content/lg_content_lunch_time.png"
+            alt=""
+            sx={{
+              width: 36,
+              height: 36,
+              objectFit: "contain",
+            }}
+          />
+          <Typography
+            component="h2"
+            sx={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: "#333333",
+            }}
+          >
+            昼食
+          </Typography>
+        </Stack>
+        <MealRecipeGrid
+          mealData={zuboraSet.meals.lunch}
+          recipesById={recipesById}
+          onSelectSlot={(slotKey) => {
+            setMealEditTarget({
+              meal: "lunch",
+              slot: slotKey,
+            });
+          }}
+          onEditSlot={(slotKey) => {
+            setMealEditTarget({
+              meal: "lunch",
+              slot: slotKey,
+            });
+          }}
+          onRecipeClick={(recipeId) => {
+            const back = router.asPath;
+
+            router.push(
+              `/recipes/${recipeId}?back=${encodeURIComponent(back)}`,
+            );
+          }}
+          onRemoveSlot={(slotKey) => {
+            handleClearRecipeSlot("lunch", slotKey);
+          }}
+        />
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={1}
+          sx={{ mb: 2, mt: 4 }}
+        >
+          <Box
+            component="img"
+            src="/icons/rakusuru/content/lg_content_dinner_time.png"
+            alt=""
+            sx={{
+              width: 36,
+              height: 36,
+              objectFit: "contain",
+            }}
+          />
+          <Typography
+            component="h2"
+            sx={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: "#333333",
+            }}
+          >
+            夕食
+          </Typography>
+        </Stack>
+        <MealRecipeGrid
+          mealData={zuboraSet.meals.dinner}
+          recipesById={recipesById}
+          onSelectSlot={(slotKey) => {
+            setMealEditTarget({
+              meal: "dinner",
+              slot: slotKey,
+            });
+          }}
+          onEditSlot={(slotKey) => {
+            setMealEditTarget({
+              meal: "dinner",
+              slot: slotKey,
+            });
+          }}
+          onRecipeClick={(recipeId) => {
+            const back = router.asPath;
+
+            router.push(
+              `/recipes/${recipeId}?back=${encodeURIComponent(back)}`,
+            );
+          }}
+          onRemoveSlot={(slotKey) => {
+            handleClearRecipeSlot("dinner", slotKey);
+          }}
+        />
+        {!hasAtLeastOneRecipe && (
+          <Typography
+            sx={{
+              mt: 3,
+              fontSize: 13,
+              color: "#F44336",
+            }}
+          >
+            レシピを1件以上登録してください。
+          </Typography>
+        )}
+
+        <Stack spacing={2} sx={{ mt: 4 }}>
+          <Button
+            type="button"
+            variant="contained"
+            fullWidth
+            onClick={handleSave}
+            disabled={saving || !name.trim() || !hasAtLeastOneRecipe}
+            sx={{
+              py: 1.6,
+              borderRadius: 3,
+              bgcolor: "#FFB830",
+              color: "#333333",
+              fontSize: 16,
+              fontWeight: 700,
+              boxShadow: "none",
+              "&:hover": {
+                bgcolor: "#F5A900",
+                boxShadow: "none",
+              },
+              "&.Mui-disabled": {
+                bgcolor: "#E5E5E5",
+                color: "#999999",
+              },
+            }}
+          >
+            {saving ? "保存中..." : "変更を保存する"}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outlined"
+            fullWidth
+            onClick={() => setDeleteDialogOpen(true)}
+            sx={{
+              py: 1.4,
+              borderRadius: 3,
+              borderColor: "#F44336",
+              color: "#F44336",
+              fontSize: 14,
+              fontWeight: 700,
+              "&:hover": {
+                borderColor: "#D32F2F",
+                bgcolor: "#FFF5F5",
+              },
+            }}
+          >
+            このズボラセットを削除する
+          </Button>
+        </Stack>
+
+        <RecipeSelectionDrawer
+          open={!!mealEditTarget}
+          mealLabel={
+            mealEditTarget
+              ? mealEditTarget.meal === "breakfast"
+                ? "朝"
+                : mealEditTarget.meal === "lunch"
+                  ? "昼"
+                  : "夜"
+              : ""
+          }
+          selectedSlot={mealEditTarget?.slot ?? "staple"}
+          recipes={recipes}
+          currentRecipeId={currentRecipeId}
+          searchQuery={recipeSearchQuery}
+          busy={recipeSaving}
+          onClose={() => setMealEditTarget(null)}
+          onChangeSlot={(slotKey) => {
+            setMealEditTarget((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    slot: slotKey,
+                  }
+                : prev,
+            );
+          }}
+          onChangeSearchQuery={setRecipeSearchQuery}
+          onSelectRecipe={handleSelectRecipe}
+          onRemoveRecipe={() => {
+            if (!mealEditTarget) {
+              return;
+            }
+
+            handleClearRecipeSlot(mealEditTarget.meal, mealEditTarget.slot);
+          }}
+        />
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackbarOpen(false)}
+          message="変更を保存しました"
+          anchorOrigin={{
+            vertical: "bottom",
+            horizontal: "center",
+          }}
+        />
+        <Dialog
+          open={deleteDialogOpen}
+          onClose={() => setDeleteDialogOpen(false)}
+        >
+          <DialogTitle>ズボラセットを削除しますか？</DialogTitle>
+
+          <DialogContent>
+            <DialogContentText>この操作は取り消せません。</DialogContentText>
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              type="button"
+              onClick={() => setDeleteDialogOpen(false)}
+              sx={{
+                color: "#666666",
+                fontWeight: 700,
+              }}
+            >
+              キャンセル
+            </Button>
+
+            <Button
+              type="button"
+              onClick={handleDelete}
+              variant="contained"
+              sx={{
+                bgcolor: "#F44336",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                boxShadow: "none",
+                "&:hover": {
+                  bgcolor: "#D32F2F",
+                  boxShadow: "none",
+                },
+              }}
+            >
+              削除する
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </AppLayout>
   );
 }
