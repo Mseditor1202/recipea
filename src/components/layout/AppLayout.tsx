@@ -7,13 +7,19 @@ import BottomNavigation from "@/components/navigation/BottomNavigation";
 type AppLayoutProps = {
   children: ReactNode;
   title: string;
+  backHref?: string;
+  onBack?: () => void;
   activeNav?: "home" | "meal" | "create" | "recipes" | "mypage";
+  showBottomNavigation?: boolean;
 };
 
 export default function AppLayout({
   children,
   title,
+  backHref,
+  onBack,
   activeNav,
+  showBottomNavigation = true,
 }: AppLayoutProps) {
   const { loading } = useRequireAuth();
   if (loading) {
@@ -26,7 +32,7 @@ export default function AppLayout({
         bgcolor: "background.default",
       }}
     >
-      <PageHeader title={title} />
+      <PageHeader title={title} backHref={backHref} onBack={onBack} />
 
       <Box
         component="main"
@@ -37,7 +43,7 @@ export default function AppLayout({
         {children}
       </Box>
 
-      <BottomNavigation activeNav={activeNav} />
+      {showBottomNavigation && <BottomNavigation activeNav={activeNav} />}
     </Box>
   );
 }
