@@ -7,45 +7,26 @@ import {
   Box,
   Typography,
   Card,
-  CardContent,
-  Grid,
   Button,
   Stack,
-  Tabs,
-  Tab,
-  Divider,
-  Chip,
   Skeleton,
   Snackbar,
   Alert,
-  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  where,
-  query,
-  setDoc,
-  serverTimestamp,
-  limit,
-  orderBy,
-} from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { listRecipes } from "@/features/recipes";
+import { listZuboraSets } from "@/features/zuboraSets/repositories/zuboraSetRepository";
 import RecipeSelectionDrawer from "@/features/recipes/components/RecipeSelectionDrawer";
-import MealRecipeGrid from "@/features/recipes/components/MealRecipeGrid";
 
 const DEFAULT_IMAGE = "/images/default-recipe.png";
 
-// dailySets の中で「ズボラ用」を探すキーワード（nameに含める）
-const ZUBORA_DAILYSET_KEYWORD = "ズボラ";
-
 // Firestore collection名
 const COLLECTION_WEEKLY_DAY = "weeklyDaySets";
-const COLLECTION_RECIPES = "recipes";
-const COLLECTION_DAILYSETS = "dailySets";
 
 const MEAL_LABEL = { breakfast: "朝", lunch: "昼", dinner: "夜" };
 const SLOT_LABEL = { staple: "主食", main: "主菜", side: "副菜", soup: "汁物" };
@@ -74,15 +55,10 @@ const addDays = (date, diff) => {
   d.setDate(d.getDate() + diff);
   return d;
 };
-const formatMonthTitle = (date) =>
-  `${date.getFullYear()}年${date.getMonth() + 1}月`;
+
 const formatDateTitle = (key) => {
   const d = parseDateKey(key);
   return `${d.getMonth() + 1}月 ${d.getDate()}日(${WEEKDAY_JA[d.getDay()]})`;
-};
-const formatMMDD = (key) => {
-  const d = parseDateKey(key);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
 };
 
 /** ===============================
@@ -92,43 +68,12 @@ function collectRecipeIdsFromDay(dayData) {
   const set = new Set();
   MEAL_ORDER.forEach((mealKey) => {
     const mealData = dayData?.[mealKey] || {};
-    const hasAnyRecipe = SLOT_ORDER.some((slotKey) => !!mealData?.[slotKey]);
     SLOT_ORDER.forEach((slotKey) => {
       const id = mealData?.[slotKey];
       if (id) set.add(id);
     });
   });
   return set;
-}
-
-function mealFilledMap(dayData) {
-  const filled = { breakfast: false, lunch: false, dinner: false };
-  if (!dayData) return filled;
-
-  MEAL_ORDER.forEach((mealKey) => {
-    const mealData = dayData?.[mealKey] || {};
-    filled[mealKey] = SLOT_ORDER.some((slotKey) => !!mealData?.[slotKey]);
-  });
-
-  return filled;
-}
-
-function isDayPlanEmpty(dayData) {
-  if (!dayData) return true;
-  return !MEAL_ORDER.some((mealKey) =>
-    SLOT_ORDER.some((slotKey) => !!dayData?.[mealKey]?.[slotKey]),
-  );
-}
-
-function dailySetToMealSlots(dailySetData) {
-  // dailySets: { staple, mainDish, sideDish, soup } 想定
-  // 揺れ吸収：main / side が入ってても拾う
-  return {
-    staple: dailySetData?.staple || null,
-    main: dailySetData?.mainDish || dailySetData?.main || null,
-    side: dailySetData?.sideDish || dailySetData?.side || null,
-    soup: dailySetData?.soup || null,
-  };
 }
 
 /** ===============================
@@ -145,6 +90,9 @@ function TodayDetail({
   onPrevDay,
   onNextDay,
   onToday,
+  selectedZuboraSet,
+  onApplyZuboraSet,
+  onCloseZuboraDialog,
 }) {
   if (loading) {
     return (
@@ -656,439 +604,57 @@ function TodayDetail({
           );
         })}
       </Stack>
-    </Box>
-  );
-}
 
-/** ===============================
- * 月間カレンダー（7列固定）
- =============================== */
-function CalendarMonthGridA({
-  monthDate,
-  dayDocsByKey,
-  selectedDayKey,
-  onSelectDay,
-  todayKey,
-  cellHeight = 118,
-}) {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-
-  const first = new Date(year, month, 1);
-  const startWeekday = first.getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const cells = [];
-  for (let i = 0; i < 35; i++) {
-    const dayNum = i - startWeekday + 1;
-    if (dayNum < 1 || dayNum > daysInMonth) cells.push(null);
-    else cells.push(new Date(year, month, dayNum));
-  }
-
-  return (
-    <Box sx={{ borderTop: "1px solid #e9e9e9" }}>
-      {/* 曜日ヘッダー */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7, 1fr)",
-          borderBottom: "1px solid #e9e9e9",
-          bgcolor: "#fff",
-        }}
+      <Dialog
+        open={!!selectedZuboraSet}
+        onClose={onCloseZuboraDialog}
+        fullWidth
+        maxWidth="sm"
       >
-        {WEEKDAY_JA.map((w, idx) => (
-          <Box
-            key={w}
-            sx={{
-              py: 1,
-              textAlign: "center",
-              fontWeight: 900,
-              fontSize: 13,
-              color: idx === 0 ? "#d32f2f" : idx === 6 ? "#1976d2" : "#555",
-            }}
-          >
-            {w}
-          </Box>
-        ))}
-      </Box>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          このズボラセットを使いますか？
+        </DialogTitle>
 
-      {/* 日付セル */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7, 1fr)",
-          bgcolor: "#fff",
-        }}
-      >
-        {cells.map((d, idx) => {
-          const isEmpty = !d;
-          const dayKey = d ? toDateKey(d) : "";
-          const isSelected = !!d && dayKey === selectedDayKey;
-          const isToday = !!d && dayKey === todayKey;
-
-          const weekday = d ? d.getDay() : 0;
-          const numColor =
-            weekday === 0 ? "#d32f2f" : weekday === 6 ? "#1976d2" : "#333";
-
-          const filled = d ? mealFilledMap(dayDocsByKey?.[dayKey]) : null;
-
-          const isLastCol = idx % 7 === 6;
-          const isLastRow = idx >= 35;
-
-          return (
-            <Box
-              key={isEmpty ? `e-${idx}` : dayKey}
-              onClick={() => !isEmpty && onSelectDay(dayKey)}
-              sx={{
-                height: cellHeight,
-                position: "relative",
-                cursor: isEmpty ? "default" : "pointer",
-                userSelect: "none",
-                bgcolor: isSelected
-                  ? "rgba(25,118,210,0.08)"
-                  : isToday
-                    ? "rgba(255,193,7,0.10)"
-                    : "#fff",
-                borderRight: isLastCol ? "none" : "1px solid #e9e9e9",
-                borderBottom: isLastRow ? "none" : "1px solid #e9e9e9",
-                outline: isSelected
-                  ? "2px solid rgba(25,118,210,0.55)"
-                  : "none",
-                outlineOffset: isSelected ? "-2px" : 0,
-              }}
-            >
-              {!isEmpty && (
-                <Box sx={{ p: 1 }}>
-                  <Typography sx={{ fontWeight: 900, color: numColor }}>
-                    {d.getDate()}
-                  </Typography>
-
-                  {/* 朝昼夜バッジ */}
-                  <Stack
-                    direction="row"
-                    spacing={0.6}
-                    sx={{ position: "absolute", left: 10, bottom: 10 }}
-                  >
-                    {filled?.breakfast && (
-                      <Box
-                        sx={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 999,
-                          bgcolor: "#F6A623",
-                          color: "#fff",
-                          fontSize: 11,
-                          fontWeight: 900,
-                          display: "grid",
-                          placeItems: "center",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
-                        }}
-                      >
-                        朝
-                      </Box>
-                    )}
-                    {filled?.lunch && (
-                      <Box
-                        sx={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 999,
-                          bgcolor: "#4A90E2",
-                          color: "#fff",
-                          fontSize: 11,
-                          fontWeight: 900,
-                          display: "grid",
-                          placeItems: "center",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
-                        }}
-                      >
-                        昼
-                      </Box>
-                    )}
-                    {filled?.dinner && (
-                      <Box
-                        sx={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 999,
-                          bgcolor: "#7ED321",
-                          color: "#fff",
-                          fontSize: 11,
-                          fontWeight: 900,
-                          display: "grid",
-                          placeItems: "center",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
-                        }}
-                      >
-                        夜
-                      </Box>
-                    )}
-                  </Stack>
-                </Box>
-              )}
-            </Box>
-          );
-        })}
-      </Box>
-    </Box>
-  );
-}
-
-/** ===============================
- * 朝/昼/夜スライド + 2x2（主食/主菜/副菜/汁物）
- =============================== */
-function MealSlidePanelV2({
-  mealKey,
-  onChangeMeal,
-  selectedDayKey,
-  todayKey,
-  selectedDayData,
-  recipesById,
-  loadingRange,
-  selectedHasPlan,
-}) {
-  const mealIndex = MEAL_ORDER.indexOf(mealKey);
-  const dateTitle = selectedDayKey ? formatDateTitle(selectedDayKey) : "—";
-  const mmdd = selectedDayKey ? formatMMDD(selectedDayKey) : "-";
-
-  const goPrev = () => {
-    const next = (mealIndex - 1 + MEAL_ORDER.length) % MEAL_ORDER.length;
-    onChangeMeal(MEAL_ORDER[next]);
-  };
-  const goNext = () => {
-    const next = (mealIndex + 1) % MEAL_ORDER.length;
-    onChangeMeal(MEAL_ORDER[next]);
-  };
-
-  const mealData = selectedDayData?.[mealKey] || {};
-  const titleKey = selectedDayKey || todayKey;
-
-  return (
-    <Box
-      sx={{
-        maxWidth: 760,
-        mx: "auto",
-        borderRadius: 4,
-        border: "1px solid #e6e9f0",
-        bgcolor: "#fff",
-        overflow: "hidden",
-        boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-        mb: 2.5,
-      }}
-    >
-      {/* Header */}
-      <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2.2, sm: 2.6 } }}>
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-        >
+        <DialogContent>
           <Typography
             sx={{
-              fontSize: { xs: 28, sm: 34 },
-              fontWeight: 950,
-              letterSpacing: "0.02em",
+              fontSize: 16,
+              fontWeight: 700,
+              color: "#333333",
             }}
           >
-            {dateTitle} の献立
+            {selectedZuboraSet?.name || "名称未設定"}
           </Typography>
 
-          <Box
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 0.8,
-              px: 2,
-              py: 1,
-              borderRadius: 999,
-              fontWeight: 900,
-              fontSize: 13,
-              bgcolor: selectedHasPlan ? "#ffe9ee" : "#f1f3f6",
-              color: selectedHasPlan ? "#d32f2f" : "#667085",
-            }}
+          {selectedZuboraSet?.description && (
+            <Typography
+              sx={{
+                mt: 1,
+                fontSize: 14,
+                color: "#777777",
+                lineHeight: 1.7,
+              }}
+            >
+              {selectedZuboraSet.description}
+            </Typography>
+          )}
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={onCloseZuboraDialog}>キャンセル</Button>
+
+          <Button
+            onClick={() => onApplyZuboraSet("overwrite")}
+            variant="outlined"
           >
-            {selectedHasPlan ? "献立あり（選択日）" : "未登録（選択日）"}
-            <span style={{ fontWeight: 900, fontSize: 16, lineHeight: 1 }}>
-              ›
-            </span>
-          </Box>
-        </Stack>
-      </Box>
+            すべて上書き
+          </Button>
 
-      {/* Nav row */}
-      <Box
-        sx={{
-          px: { xs: 2, sm: 3 },
-          py: 1.8,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 2,
-          borderTop: "1px solid #eef1f6",
-        }}
-      >
-        <Button
-          onClick={goPrev}
-          sx={{
-            width: 64,
-            height: 64,
-            borderRadius: 999,
-            bgcolor: "#eef1f6",
-            border: "1px solid #e6e9f0",
-            boxShadow: "0 10px 18px rgba(15, 23, 42, 0.06)",
-            "&:hover": { bgcolor: "#e9edf5" },
-          }}
-        >
-          <Typography sx={{ fontSize: 28, fontWeight: 900, color: "#1f2a37" }}>
-            ‹
-          </Typography>
-        </Button>
-
-        <Box
-          sx={{
-            bgcolor: "#eaf1ff",
-            border: "1px solid #d7e5ff",
-            borderRadius: 999,
-            p: 0.6,
-            display: "inline-flex",
-            gap: 0.6,
-            minWidth: 260,
-            justifyContent: "center",
-          }}
-        >
-          {MEAL_ORDER.map((k) => {
-            const active = k === mealKey;
-            return (
-              <Box
-                key={k}
-                onClick={() => onChangeMeal(k)}
-                sx={{
-                  px: 3,
-                  py: 1.1,
-                  borderRadius: 999,
-                  fontWeight: 950,
-                  fontSize: 16,
-                  letterSpacing: "0.02em",
-                  cursor: "pointer",
-                  userSelect: "none",
-                  bgcolor: active ? "#2F6BD8" : "transparent",
-                  color: active ? "#fff" : "#1f2a37",
-                  boxShadow: active
-                    ? "0 10px 18px rgba(47,107,216,0.28)"
-                    : "none",
-                  transition: "all 140ms ease",
-                }}
-              >
-                {MEAL_LABEL[k]}
-              </Box>
-            );
-          })}
-        </Box>
-
-        <Button
-          onClick={goNext}
-          sx={{
-            width: 64,
-            height: 64,
-            borderRadius: 999,
-            bgcolor: "#eef1f6",
-            border: "1px solid #e6e9f0",
-            boxShadow: "0 10px 18px rgba(15, 23, 42, 0.06)",
-            "&:hover": { bgcolor: "#e9edf5" },
-          }}
-        >
-          <Typography sx={{ fontSize: 28, fontWeight: 900, color: "#1f2a37" }}>
-            ›
-          </Typography>
-        </Button>
-      </Box>
-
-      {/* Grid */}
-      <Box
-        sx={{
-          px: { xs: 2, sm: 3 },
-          py: 2.2,
-          borderTop: "1px solid #eef1f6",
-        }}
-      >
-        <MealRecipeGrid
-          mealData={mealData}
-          recipesById={recipesById}
-          loading={loadingRange}
-          onRecipeClick={(recipeId) => {
-            window.location.href = `/recipes/${recipeId}?from=home`;
-          }}
-        />
-      </Box>
-
-      {/* Big button */}
-      <Box
-        sx={{
-          px: { xs: 2, sm: 3 },
-          pb: 3,
-          pt: 1.4,
-          display: "flex",
-          justifyContent: "center",
-        }}
-      >
-        <Button
-          component={NextLink}
-          href={`/recipes/weekly?dayKey=${titleKey}`}
-          variant="contained"
-          sx={{
-            width: "100%",
-            maxWidth: 460,
-            borderRadius: 2.2,
-            textTransform: "none",
-            fontWeight: 950,
-            fontSize: 16,
-            py: 1.6,
-            boxShadow: "0 16px 30px rgba(47,107,216,0.35)",
-          }}
-        >
-          献立を変更する
-        </Button>
-      </Box>
-
-      {/* footer chips */}
-      <Box
-        sx={{
-          px: { xs: 2, sm: 3 },
-          pb: 2.4,
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 1.2,
-        }}
-      >
-        <Box
-          sx={{
-            px: 2,
-            py: 0.9,
-            borderRadius: 999,
-            fontWeight: 950,
-            fontSize: 13,
-            bgcolor: selectedHasPlan ? "#ffe9ee" : "#f1f3f6",
-            color: selectedHasPlan ? "#d32f2f" : "#111827",
-            border: "1px solid rgba(0,0,0,0.06)",
-          }}
-        >
-          {selectedHasPlan ? "献立あり（選択日）" : "未登録（選択日）"}
-        </Box>
-        <Box
-          sx={{
-            px: 2,
-            py: 0.9,
-            borderRadius: 999,
-            fontWeight: 950,
-            fontSize: 13,
-            bgcolor: "#f1f3f6",
-            color: "#111827",
-            border: "1px solid rgba(0,0,0,0.06)",
-          }}
-        >
-          選択. {mmdd}
-        </Box>
-      </Box>
+          <Button onClick={() => onApplyZuboraSet("empty")} variant="contained">
+            空いている枠だけ反映
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
@@ -1096,29 +662,23 @@ function MealSlidePanelV2({
 export default function HomeTodayMenu() {
   const { user } = useAuth();
 
-  const [tab, setTab] = useState(0);
-
   const [todayKey, setTodayKey] = useState("");
   const [displayDayKey, setDisplayDayKey] = useState("");
-  const [selectedDayKey, setSelectedDayKey] = useState("");
 
   const [rangeKeys, setRangeKeys] = useState([]);
 
   const [dayDocsByKey, setDayDocsByKey] = useState({});
   const [recipesById, setRecipesById] = useState({});
   const [selectableRecipes, setSelectableRecipes] = useState([]);
+  const [zuboraSets, setZuboraSets] = useState([]);
+  const [selectedZuboraSet, setSelectedZuboraSet] = useState(null);
 
   const [loadingRange, setLoadingRange] = useState(true);
   const [error, setError] = useState("");
 
-  const [monthDate, setMonthDate] = useState(new Date());
-
   const [actionBusy, setActionBusy] = useState(false);
   const [mealEditTarget, setMealEditTarget] = useState(null);
   const [recipeSearchQuery, setRecipeSearchQuery] = useState("");
-
-  // 下ゾーン：朝/昼/夜のスライド状態
-  const [slideMealKey, setSlideMealKey] = useState("lunch");
 
   const [toast, setToast] = useState({
     open: false,
@@ -1129,22 +689,47 @@ export default function HomeTodayMenu() {
     setToast({ open: true, message, severity });
   }, []);
 
+  const chooseRandomZuboraSet = useCallback(() => {
+    if (zuboraSets.length === 0) {
+      setSelectedZuboraSet(null);
+      return;
+    }
+
+    const randomIndex = Math.floor(Math.random() * zuboraSets.length);
+    setSelectedZuboraSet(zuboraSets[randomIndex]);
+  }, [zuboraSets]);
+
   useEffect(() => {
     const d = new Date();
     const key = toDateKey(d);
 
     setTodayKey(key);
     setDisplayDayKey(key);
-    setSelectedDayKey(key);
 
     // 直近30日（取得用）
     const keys = [];
     for (let i = 29; i >= 0; i--) keys.push(toDateKey(addDays(d, -i)));
     setRangeKeys(keys);
-
-    // 今月表示
-    setMonthDate(new Date(d.getFullYear(), d.getMonth(), 1));
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setZuboraSets([]);
+      return;
+    }
+
+    const fetchZuboraSets = async () => {
+      try {
+        const sets = await listZuboraSets(user.uid);
+        setZuboraSets(sets);
+      } catch (e) {
+        console.error("ズボラセットの取得に失敗しました", e);
+        setZuboraSets([]);
+      }
+    };
+
+    fetchZuboraSets();
+  }, [user]);
 
   useEffect(() => {
     if (!user || !rangeKeys || rangeKeys.length === 0) return;
@@ -1209,26 +794,11 @@ export default function HomeTodayMenu() {
     fetchRange();
   }, [rangeKeys, user]);
 
-  const handleTabChange = useCallback((_, next) => setTab(next), []);
-  const handleSelectDay = useCallback((key) => setSelectedDayKey(key), []);
+  const displayDayData = displayDayKey ? dayDocsByKey[displayDayKey] : null;
 
-  const selectedDayData = selectedDayKey ? dayDocsByKey[selectedDayKey] : null;
-
-  // 選択日が変わったら、表示は「昼」に戻す
-  useEffect(() => {
-    setSlideMealKey("lunch");
-  }, [selectedDayKey]);
-
-  const prevMonth = useCallback(() => {
-    setMonthDate(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
-    );
-  }, []);
-  const nextMonth = useCallback(() => {
-    setMonthDate(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
-    );
-  }, []);
+  const hasEmptySlot = MEAL_ORDER.some((mealKey) =>
+    SLOT_ORDER.some((slotKey) => !displayDayData?.[mealKey]?.[slotKey]),
+  );
 
   const refreshDayAndRecipes = useCallback(
     async (key) => {
@@ -1274,119 +844,77 @@ export default function HomeTodayMenu() {
     [user],
   );
 
-  /** ===============================
-   * ズボラ用セットを今日に適用
-   =============================== */
-  const applyZuboraDailySetToToday = useCallback(async () => {
-    if (!user || !todayKey) return;
-
-    setActionBusy(true);
-
-    try {
-      const dailyRef = collection(db, COLLECTION_DAILYSETS);
-
-      let snap;
+  const applySelectedZuboraSet = useCallback(
+    async (mode) => {
+      if (!user || !displayDayKey || !selectedZuboraSet) return;
 
       try {
-        const qDaily = query(
-          dailyRef,
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc"),
-          limit(30),
+        setActionBusy(true);
+
+        const dayRef = doc(
+          db,
+          COLLECTION_WEEKLY_DAY,
+          `${user.uid}_${displayDayKey}`,
         );
 
-        snap = await getDocs(qDaily);
-      } catch (e) {
-        console.warn("dailySets orderBy(createdAt) failed. fallback:", e);
+        const daySnap = await getDoc(dayRef);
+        const currentDay = daySnap.exists() ? daySnap.data() || {} : {};
 
-        const qDaily = query(
-          dailyRef,
-          where("userId", "==", user.uid),
-          limit(30),
-        );
+        const buildMeal = (mealKey) => {
+          const currentMeal = currentDay?.[mealKey] || {};
+          const zuboraMeal = selectedZuboraSet?.meals?.[mealKey] || {};
 
-        snap = await getDocs(qDaily);
-      }
+          if (mode === "overwrite") {
+            return {
+              staple: zuboraMeal.staple || null,
+              main: zuboraMeal.main || null,
+              side: zuboraMeal.side || null,
+              soup: zuboraMeal.soup || null,
+            };
+          }
 
-      if (!snap || snap.empty) {
-        showToast(
-          "献立レシピの登録がされていません。先に献立レシピの登録をおこなってください。",
-          "error",
-        );
-        return;
-      }
+          return {
+            staple: currentMeal.staple || zuboraMeal.staple || null,
+            main: currentMeal.main || zuboraMeal.main || null,
+            side: currentMeal.side || zuboraMeal.side || null,
+            soup: currentMeal.soup || zuboraMeal.soup || null,
+          };
+        };
 
-      const list = snap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-
-      const chosen =
-        list.find((d) => (d.name || "").includes(ZUBORA_DAILYSET_KEYWORD)) ||
-        list[0];
-
-      const dailySetId = chosen?.id;
-
-      if (!dailySetId) {
-        showToast(
-          "ズボラ用セットが見つかりませんでした。ズボラ用セットの登録をおこなってください。",
-          "error",
-        );
-        return;
-      }
-
-      const dsSnap = await getDoc(doc(db, COLLECTION_DAILYSETS, dailySetId));
-
-      if (!dsSnap.exists()) {
-        showToast("選択されたテンプレートが見つかりませんでした。", "error");
-        return;
-      }
-
-      const dailySetData = dsSnap.data() || {};
-
-      if (dailySetData.userId !== user.uid) {
-        showToast("このテンプレートは利用できません。", "error");
-        return;
-      }
-
-      const slots = dailySetToMealSlots(dailySetData);
-
-      await setDoc(
-        doc(db, COLLECTION_WEEKLY_DAY, `${user.uid}_${todayKey}`),
-        {
-          userId: user.uid,
-          breakfast: slots,
-          lunch: slots,
-          dinner: slots,
-          templateIds: {
-            breakfast: dailySetId,
-            lunch: dailySetId,
-            dinner: dailySetId,
+        await setDoc(
+          dayRef,
+          {
+            userId: user.uid,
+            breakfast: buildMeal("breakfast"),
+            lunch: buildMeal("lunch"),
+            dinner: buildMeal("dinner"),
+            updatedAt: serverTimestamp(),
           },
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
+          { merge: true },
+        );
 
-      await refreshDayAndRecipes(todayKey);
+        await refreshDayAndRecipes(displayDayKey);
+        setSelectedZuboraSet(null);
 
-      showToast("ズボラ用セットで献立を作成しました。", "success");
-    } catch (e) {
-      console.error("applyZuboraDailySetToToday error:", e);
-
-      showToast("ズボラ用セットの適用に問題が発生しました。", "error");
-    } finally {
-      setActionBusy(false);
-    }
-  }, [user, todayKey, refreshDayAndRecipes, showToast]);
+        showToast(
+          mode === "overwrite"
+            ? "ズボラセットで献立を上書きしました。"
+            : "空いている献立にズボラセットを反映しました。",
+          "success",
+        );
+      } catch (e) {
+        console.error("applySelectedZuboraSet error:", e);
+        showToast("ズボラセットの反映に失敗しました。", "error");
+      } finally {
+        setActionBusy(false);
+      }
+    },
+    [user, displayDayKey, selectedZuboraSet, refreshDayAndRecipes, showToast],
+  );
 
   /** ===============================
    * 変更する → /recipes の選択モードへ
    =============================== */
-  const changeSlotRecipe = useCallback((dayKey, mealKey, slotKey) => {
-    if (!dayKey) return;
-    window.location.href = `/recipes?mode=weeklyDay&dayKey=${dayKey}&meal=${mealKey}&slot=${slotKey}&from=home`;
-  }, []);
 
   const openMealEditDialog = useCallback(
     async (dayKey, mealKey, slotKey) => {
@@ -1519,10 +1047,6 @@ export default function HomeTodayMenu() {
     },
     [user, refreshDayAndRecipes, showToast],
   );
-
-  const selectedHasPlan = useMemo(() => {
-    return selectedDayData && !isDayPlanEmpty(selectedDayData);
-  }, [selectedDayData]);
 
   const currentRecipeId = mealEditTarget
     ? dayDocsByKey?.[mealEditTarget.dayKey]?.[mealEditTarget.mealKey]?.[
@@ -1731,103 +1255,89 @@ export default function HomeTodayMenu() {
         )}
 
         {/* 今日 */}
-        {tab === 0 && (
-          <TodayDetail
-            todayKey={displayDayKey}
-            dayData={displayDayKey ? dayDocsByKey[displayDayKey] : null}
-            recipesMap={recipesById}
-            loading={loadingRange}
-            error={error}
-            onApplyZuboraDailySetToToday={applyZuboraDailySetToToday}
-            onChangeSlotRecipe={openMealEditDialog}
-            onDeleteSlotRecipe={deleteSlotRecipe}
-            actionBusy={actionBusy}
-            onPrevDay={goPrevDay}
-            onNextDay={goNextDay}
-            onToday={goToday}
-          />
-        )}
+        <TodayDetail
+          todayKey={displayDayKey}
+          onCloseZuboraDialog={() => setSelectedZuboraSet(null)}
+          dayData={displayDayKey ? dayDocsByKey[displayDayKey] : null}
+          recipesMap={recipesById}
+          loading={loadingRange}
+          error={error}
+          onChangeSlotRecipe={openMealEditDialog}
+          actionBusy={actionBusy}
+          onPrevDay={goPrevDay}
+          onNextDay={goNextDay}
+          onToday={goToday}
+          selectedZuboraSet={selectedZuboraSet}
+          onApplyZuboraSet={applySelectedZuboraSet}
+        />
 
-        {/* 献立カレンダー */}
-        {tab === 1 && (
-          <Box sx={{ pt: 2 }}>
-            <Box
-              sx={{
-                border: "1px solid #e6e6e6",
-                borderRadius: 2,
-                bgcolor: "#fff",
-                overflow: "hidden",
-              }}
+        {hasEmptySlot && (
+          <Card
+            sx={{
+              mb: 2,
+              p: 2,
+              borderRadius: 3,
+              border: "1px solid #F3D6A3",
+              bgcolor: "#FFF8EC",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              alignItems={{ xs: "stretch", sm: "center" }}
+              justifyContent="space-between"
+              spacing={2}
             >
-              {/* 上：カレンダーゾーン */}
-              <Box sx={{ px: { xs: 1.5, md: 2 }, pt: 2, pb: 1.5 }}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  sx={{ mb: 1 }}
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#333333",
+                  }}
                 >
-                  <Button
-                    variant="outlined"
-                    onClick={prevMonth}
-                    sx={{
-                      borderRadius: 999,
-                      textTransform: "none",
-                      minWidth: 92,
-                      fontWeight: 900,
-                    }}
-                  >
-                    前の月
-                  </Button>
+                  まだ決まっていない献立があります
+                </Typography>
 
-                  <Typography
-                    variant="h6"
-                    sx={{ fontWeight: 900, letterSpacing: "0.02em" }}
-                  >
-                    {formatMonthTitle(monthDate)}
-                  </Typography>
-
-                  <Button
-                    variant="outlined"
-                    onClick={nextMonth}
-                    sx={{
-                      borderRadius: 999,
-                      textTransform: "none",
-                      minWidth: 92,
-                      fontWeight: 900,
-                    }}
-                  >
-                    次の月
-                  </Button>
-                </Stack>
-
-                <CalendarMonthGridA
-                  monthDate={monthDate}
-                  dayDocsByKey={dayDocsByKey}
-                  selectedDayKey={selectedDayKey}
-                  onSelectDay={handleSelectDay}
-                  todayKey={todayKey}
-                  cellHeight={118}
-                />
+                <Typography
+                  sx={{
+                    mt: 0.5,
+                    fontSize: 13,
+                    color: "#777777",
+                  }}
+                >
+                  ズボラセットを使えば、まとめて献立を決められます。
+                </Typography>
               </Box>
 
-              <Divider />
-
-              {/* 下：献立ゾーン（画像イメージのUI） */}
-              <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-                <MealSlidePanelV2
-                  mealKey={slideMealKey}
-                  onChangeMeal={setSlideMealKey}
-                  selectedDayKey={selectedDayKey}
-                  todayKey={todayKey}
-                  selectedDayData={selectedDayData}
-                  recipesById={recipesById}
-                  loadingRange={loadingRange}
-                  selectedHasPlan={selectedHasPlan}
-                />
-              </Box>
-            </Box>
-          </Box>
+              <Button
+                component={zuboraSets.length === 0 ? NextLink : "button"}
+                href={
+                  zuboraSets.length === 0 ? "/recipes/zubora/create" : undefined
+                }
+                onClick={
+                  zuboraSets.length > 0 ? chooseRandomZuboraSet : undefined
+                }
+                variant="contained"
+                sx={{
+                  borderRadius: 3,
+                  bgcolor: "#FFB830",
+                  color: "#333333",
+                  fontWeight: 700,
+                  boxShadow: "none",
+                  whiteSpace: "nowrap",
+                  "&:hover": {
+                    bgcolor: "#F5A900",
+                    boxShadow: "none",
+                  },
+                }}
+              >
+                {zuboraSets.length > 0
+                  ? "ズボラセットで決める"
+                  : "ズボラセットを作る"}
+              </Button>
+            </Stack>
+          </Card>
         )}
 
         <Box sx={{ mt: 4 }}>
