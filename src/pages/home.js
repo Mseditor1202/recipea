@@ -91,8 +91,11 @@ function TodayDetail({
   onNextDay,
   onToday,
   selectedZuboraSet,
+<<<<<<< HEAD
   zuboraSets,
   onSelectZuboraSet,
+=======
+>>>>>>> origin/main
   onApplyZuboraSet,
   onCloseZuboraDialog,
 }) {
@@ -609,6 +612,7 @@ function TodayDetail({
       </Stack>
 
       <Dialog
+<<<<<<< HEAD
         open={!!selectedZuboraSet && !zuboraSelectOpen}
         onClose={actionBusy ? undefined : onCloseZuboraDialog}
         fullWidth
@@ -629,14 +633,31 @@ function TodayDetail({
             textAlign: "center",
           }}
         >
+=======
+        open={!!selectedZuboraSet}
+        onClose={onCloseZuboraDialog}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          このズボラセットを使いますか？
+        </DialogTitle>
+
+        <DialogContent>
+>>>>>>> origin/main
           <Typography
             component="div"
             sx={{
+<<<<<<< HEAD
               fontSize: { xs: 20, sm: 22 },
+=======
+              fontSize: 16,
+>>>>>>> origin/main
               fontWeight: 700,
               color: "#333333",
             }}
           >
+<<<<<<< HEAD
             このズボラセットを使いますか？
           </Typography>
 
@@ -1048,6 +1069,37 @@ function TodayDetail({
             }}
           >
             キャンセル
+=======
+            {selectedZuboraSet?.name || "名称未設定"}
+          </Typography>
+
+          {selectedZuboraSet?.description && (
+            <Typography
+              sx={{
+                mt: 1,
+                fontSize: 14,
+                color: "#777777",
+                lineHeight: 1.7,
+              }}
+            >
+              {selectedZuboraSet.description}
+            </Typography>
+          )}
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={onCloseZuboraDialog}>キャンセル</Button>
+
+          <Button
+            onClick={() => onApplyZuboraSet("overwrite")}
+            variant="outlined"
+          >
+            すべて上書き
+          </Button>
+
+          <Button onClick={() => onApplyZuboraSet("empty")} variant="contained">
+            空いている枠だけ反映
+>>>>>>> origin/main
           </Button>
         </DialogActions>
       </Dialog>
@@ -1673,13 +1725,17 @@ export default function HomeTodayMenu() {
           onToday={goToday}
           selectedZuboraSet={selectedZuboraSet}
           onApplyZuboraSet={applySelectedZuboraSet}
+<<<<<<< HEAD
           onSelectZuboraSet={setSelectedZuboraSet}
           zuboraSets={zuboraSets}
+=======
+>>>>>>> origin/main
         />
 
         {hasEmptySlot && (
           <Card
             sx={{
+<<<<<<< HEAD
               mt: 2,
               mb: 1,
               p: { xs: 2, md: 2.5 },
@@ -1687,6 +1743,14 @@ export default function HomeTodayMenu() {
               border: "1.5px solid #F3C46B",
               bgcolor: "#FFF9F0",
               boxShadow: "0 6px 18px rgba(217, 131, 0, 0.08)",
+=======
+              mb: 2,
+              p: 2,
+              borderRadius: 3,
+              border: "1px solid #F3D6A3",
+              bgcolor: "#FFF8EC",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+>>>>>>> origin/main
             }}
           >
             <Stack
@@ -1695,6 +1759,7 @@ export default function HomeTodayMenu() {
               justifyContent="space-between"
               spacing={2}
             >
+<<<<<<< HEAD
               <Stack direction="row" alignItems="center" spacing={1.5}>
                 <Box
                   sx={{
@@ -1742,6 +1807,29 @@ export default function HomeTodayMenu() {
                   </Typography>
                 </Box>
               </Stack>
+=======
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#333333",
+                  }}
+                >
+                  まだ決まっていない献立があります
+                </Typography>
+
+                <Typography
+                  sx={{
+                    mt: 0.5,
+                    fontSize: 13,
+                    color: "#777777",
+                  }}
+                >
+                  ズボラセットを使えば、まとめて献立を決められます。
+                </Typography>
+              </Box>
+>>>>>>> origin/main
 
               <Button
                 component={zuboraSets.length === 0 ? NextLink : "button"}
@@ -1753,6 +1841,7 @@ export default function HomeTodayMenu() {
                 }
                 variant="contained"
                 sx={{
+<<<<<<< HEAD
                   minHeight: 44,
                   px: 2.5,
                   borderRadius: 999,
@@ -1761,6 +1850,12 @@ export default function HomeTodayMenu() {
                   fontWeight: 700,
                   fontSize: 14,
                   textTransform: "none",
+=======
+                  borderRadius: 3,
+                  bgcolor: "#FFB830",
+                  color: "#333333",
+                  fontWeight: 700,
+>>>>>>> origin/main
                   boxShadow: "none",
                   whiteSpace: "nowrap",
                   "&:hover": {
@@ -1770,8 +1865,13 @@ export default function HomeTodayMenu() {
                 }}
               >
                 {zuboraSets.length > 0
+<<<<<<< HEAD
                   ? "ズボラセットで決める ›"
                   : "ズボラセットを作る ›"}
+=======
+                  ? "ズボラセットで決める"
+                  : "ズボラセットを作る"}
+>>>>>>> origin/main
               </Button>
             </Stack>
           </Card>
