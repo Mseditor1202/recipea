@@ -607,51 +607,284 @@ function TodayDetail({
 
       <Dialog
         open={!!selectedZuboraSet}
-        onClose={onCloseZuboraDialog}
+        onClose={actionBusy ? undefined : onCloseZuboraDialog}
         fullWidth
         maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            bgcolor: "#FFFDFA",
+            boxShadow: "0 20px 60px rgba(86, 64, 38, 0.18)",
+          },
+        }}
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          このズボラセットを使いますか？
-        </DialogTitle>
-
-        <DialogContent>
+        <DialogTitle
+          sx={{
+            px: { xs: 2.5, sm: 3.5 },
+            pt: 3.5,
+            pb: 1,
+            textAlign: "center",
+          }}
+        >
           <Typography
+            component="div"
             sx={{
-              fontSize: 16,
+              fontSize: { xs: 20, sm: 22 },
               fontWeight: 700,
               color: "#333333",
             }}
           >
-            {selectedZuboraSet?.name || "名称未設定"}
+            このズボラセットを使いますか？
           </Typography>
 
-          {selectedZuboraSet?.description && (
+          <Typography
+            sx={{
+              mt: 0.8,
+              fontSize: 13,
+              fontWeight: 400,
+              color: "#777777",
+            }}
+          >
+            反映方法を選んでください
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent
+          sx={{
+            px: { xs: 2.5, sm: 3.5 },
+            pt: "16px !important",
+            pb: 1,
+          }}
+        >
+          {/* 選ばれたズボラセット */}
+          <Box
+            sx={{
+              mb: 2.5,
+              p: 2,
+              borderRadius: 3,
+              bgcolor: "#FFF8EC",
+              border: "1px solid #F3D6A3",
+            }}
+          >
             <Typography
               sx={{
-                mt: 1,
-                fontSize: 14,
-                color: "#777777",
-                lineHeight: 1.7,
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#B87818",
               }}
             >
-              {selectedZuboraSet.description}
+              選ばれたズボラセット
             </Typography>
-          )}
+
+            <Typography
+              sx={{
+                mt: 0.5,
+                fontSize: 17,
+                fontWeight: 700,
+                color: "#333333",
+              }}
+            >
+              {selectedZuboraSet?.name || "名称未設定"}
+            </Typography>
+
+            {selectedZuboraSet?.description && (
+              <Typography
+                sx={{
+                  mt: 0.6,
+                  fontSize: 13,
+                  color: "#777777",
+                  lineHeight: 1.7,
+                }}
+              >
+                {selectedZuboraSet.description}
+              </Typography>
+            )}
+          </Box>
+
+          <Stack spacing={1.5}>
+            {/* 推奨 */}
+            <Box
+              component="button"
+              type="button"
+              disabled={actionBusy}
+              onClick={() => onApplyZuboraSet("empty")}
+              sx={{
+                width: "100%",
+                p: 2,
+                borderRadius: 3,
+                border: "2px solid #FFB830",
+                bgcolor: "#FFF8EC",
+                textAlign: "left",
+                cursor: actionBusy ? "default" : "pointer",
+                font: "inherit",
+                transition: "all 120ms ease",
+                "&:hover": {
+                  bgcolor: actionBusy ? "#FFF8EC" : "#FFF3E0",
+                  transform: actionBusy ? "none" : "translateY(-1px)",
+                },
+                "&:disabled": {
+                  opacity: 0.6,
+                },
+              }}
+            >
+              <Stack
+                direction="row"
+                alignItems="flex-start"
+                justifyContent="space-between"
+                spacing={2}
+              >
+                <Box>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: "#333333",
+                      }}
+                    >
+                      空いている枠だけ反映する
+                    </Typography>
+
+                    <Box
+                      component="span"
+                      sx={{
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 999,
+                        bgcolor: "#FFB830",
+                        color: "#333333",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      おすすめ
+                    </Box>
+                  </Stack>
+
+                  <Typography
+                    component="div"
+                    sx={{
+                      mt: 0.6,
+                      fontSize: 13,
+                      color: "#777777",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    すでに決まっている献立はそのまま残します。
+                  </Typography>
+                </Box>
+
+                <Typography
+                  component="span"
+                  sx={{
+                    fontSize: 22,
+                    lineHeight: 1,
+                    color: "#D98300",
+                    flexShrink: 0,
+                  }}
+                >
+                  ›
+                </Typography>
+              </Stack>
+            </Box>
+
+            {/* 上書き */}
+            <Box
+              component="button"
+              type="button"
+              disabled={actionBusy}
+              onClick={() => onApplyZuboraSet("overwrite")}
+              sx={{
+                width: "100%",
+                p: 2,
+                borderRadius: 3,
+                border: "1px solid #E8DED1",
+                bgcolor: "#FFFFFF",
+                textAlign: "left",
+                cursor: actionBusy ? "default" : "pointer",
+                font: "inherit",
+                transition: "all 120ms ease",
+                "&:hover": {
+                  bgcolor: actionBusy ? "#FFFFFF" : "#FAF8F5",
+                  borderColor: actionBusy ? "#E8DED1" : "#D9C9B7",
+                },
+                "&:disabled": {
+                  opacity: 0.6,
+                },
+              }}
+            >
+              <Stack
+                direction="row"
+                alignItems="flex-start"
+                justifyContent="space-between"
+                spacing={2}
+              >
+                <Box>
+                  <Typography
+                    component="div"
+                    sx={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: "#333333",
+                    }}
+                  >
+                    今日の献立を上書きする
+                  </Typography>
+
+                  <Typography
+                    component="div"
+                    sx={{
+                      mt: 0.6,
+                      fontSize: 13,
+                      color: "#777777",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    決まっている献立もズボラセットの内容に置き換えます。
+                  </Typography>
+                </Box>
+
+                <Typography
+                  component="span"
+                  sx={{
+                    fontSize: 22,
+                    lineHeight: 1,
+                    color: "#999999",
+                    flexShrink: 0,
+                  }}
+                >
+                  ›
+                </Typography>
+              </Stack>
+            </Box>
+          </Stack>
         </DialogContent>
 
-        <DialogActions>
-          <Button onClick={onCloseZuboraDialog}>キャンセル</Button>
-
+        <DialogActions
+          sx={{
+            justifyContent: "center",
+            px: 3.5,
+            pt: 1.5,
+            pb: 3,
+          }}
+        >
           <Button
-            onClick={() => onApplyZuboraSet("overwrite")}
-            variant="outlined"
+            type="button"
+            onClick={onCloseZuboraDialog}
+            disabled={actionBusy}
+            sx={{
+              color: "#777777",
+              fontSize: 13,
+              fontWeight: 600,
+              textTransform: "none",
+              "&:hover": {
+                bgcolor: "#F7F3EE",
+              },
+            }}
           >
-            すべて上書き
-          </Button>
-
-          <Button onClick={() => onApplyZuboraSet("empty")} variant="contained">
-            空いている枠だけ反映
+            キャンセル
           </Button>
         </DialogActions>
       </Dialog>
@@ -1274,12 +1507,13 @@ export default function HomeTodayMenu() {
         {hasEmptySlot && (
           <Card
             sx={{
+              mt: 2,
               mb: 2,
-              p: 2,
-              borderRadius: 3,
-              border: "1px solid #F3D6A3",
-              bgcolor: "#FFF8EC",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+              p: { xs: 2, md: 2.5 },
+              borderRadius: 4,
+              border: "1.5px solid #F3C46B",
+              bgcolor: "#FFF9F0",
+              boxShadow: "0 6px 18px rgba(217, 131, 0, 0.08)",
             }}
           >
             <Stack
@@ -1288,27 +1522,53 @@ export default function HomeTodayMenu() {
               justifyContent="space-between"
               spacing={2}
             >
-              <Box>
-                <Typography
+              <Stack direction="row" alignItems="center" spacing={1.5}>
+                <Box
                   sx={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: "#333333",
+                    width: 44,
+                    height: 44,
+                    borderRadius: "50%",
+                    bgcolor: "#FFF0D6",
+                    display: "grid",
+                    placeItems: "center",
+                    flexShrink: 0,
                   }}
                 >
-                  まだ決まっていない献立があります
-                </Typography>
+                  <Box
+                    component="img"
+                    src="/icons/rakusuru/navigation/lg_brand_mascot.svg"
+                    alt="ラクするごはん"
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      objectFit: "contain",
+                      display: "block",
+                    }}
+                  />
+                </Box>
 
-                <Typography
-                  sx={{
-                    mt: 0.5,
-                    fontSize: 13,
-                    color: "#777777",
-                  }}
-                >
-                  ズボラセットを使えば、まとめて献立を決められます。
-                </Typography>
-              </Box>
+                <Box>
+                  <Typography
+                    sx={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: "#333333",
+                    }}
+                  >
+                    まだ決まっていない献立があります
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      mt: 0.5,
+                      fontSize: 13,
+                      color: "#777777",
+                    }}
+                  >
+                    ズボラセットを使えば、まとめて献立を決められます。
+                  </Typography>
+                </Box>
+              </Stack>
 
               <Button
                 component={zuboraSets.length === 0 ? NextLink : "button"}
@@ -1320,10 +1580,14 @@ export default function HomeTodayMenu() {
                 }
                 variant="contained"
                 sx={{
-                  borderRadius: 3,
+                  minHeight: 44,
+                  px: 2.5,
+                  borderRadius: 999,
                   bgcolor: "#FFB830",
                   color: "#333333",
                   fontWeight: 700,
+                  fontSize: 14,
+                  textTransform: "none",
                   boxShadow: "none",
                   whiteSpace: "nowrap",
                   "&:hover": {
@@ -1333,8 +1597,8 @@ export default function HomeTodayMenu() {
                 }}
               >
                 {zuboraSets.length > 0
-                  ? "ズボラセットで決める"
-                  : "ズボラセットを作る"}
+                  ? "ズボラセットで決める ›"
+                  : "ズボラセットを作る ›"}
               </Button>
             </Stack>
           </Card>
