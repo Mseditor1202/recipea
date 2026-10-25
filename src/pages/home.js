@@ -1320,24 +1320,32 @@ export default function HomeTodayMenu() {
     return result;
   }, [rangeKeys, dayDocsByKey, recipesById]);
 
-  const goToday = useCallback(() => {
+  const goToday = useCallback(async () => {
     if (!todayKey) return;
-    setDisplayDayKey(todayKey);
-  }, [todayKey]);
 
-  const goPrevDay = useCallback(() => {
+    await refreshDayAndRecipes(todayKey);
+    setDisplayDayKey(todayKey);
+  }, [todayKey, refreshDayAndRecipes]);
+
+  const goPrevDay = useCallback(async () => {
     if (!displayDayKey) return;
 
     const prev = addDays(parseDateKey(displayDayKey), -1);
-    setDisplayDayKey(toDateKey(prev));
-  }, [displayDayKey]);
+    const prevKey = toDateKey(prev);
 
-  const goNextDay = useCallback(() => {
+    await refreshDayAndRecipes(prevKey);
+    setDisplayDayKey(prevKey);
+  }, [displayDayKey, refreshDayAndRecipes]);
+
+  const goNextDay = useCallback(async () => {
     if (!displayDayKey) return;
 
     const next = addDays(parseDateKey(displayDayKey), 1);
-    setDisplayDayKey(toDateKey(next));
-  }, [displayDayKey]);
+    const nextKey = toDateKey(next);
+
+    await refreshDayAndRecipes(nextKey);
+    setDisplayDayKey(nextKey);
+  }, [displayDayKey, refreshDayAndRecipes]);
 
   return (
     <AppLayout title="ホーム" activeNav="home">
