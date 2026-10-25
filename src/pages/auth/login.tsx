@@ -4,6 +4,7 @@ import { signInWithPopup, onAuthStateChanged } from "firebase/auth";
 import { auth, provider } from "@/lib/firebase";
 import { useRouter } from "next/router";
 import { Box, Button, CircularProgress, Typography } from "@mui/material";
+import NextLink from "next/link";
 
 function waitForFirebaseUser() {
   return new Promise((resolve, reject) => {
@@ -46,9 +47,9 @@ export default function Login() {
   const [loggingIn, setLoggingIn] = useState(false);
 
   const handleLogin = async () => {
-    try {
-      setLoggingIn(true);
+    setLoggingIn(true);
 
+    try {
       await signInWithPopup(auth, provider);
 
       // currentUserが確実に入るまで待つ
@@ -60,9 +61,26 @@ export default function Login() {
       // next を優先して戻す
       const nextPath = getSafeNext(router.query.next);
       await router.replace(nextPath);
-    } catch (e) {
-      console.error("[LOGIN] popup error:", e);
-      alert("Googleログインに失敗しました。");
+    } catch (error: unknown) {
+      const errorCode =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        typeof (error as { code?: unknown }).code === "string"
+          ? (error as { code: string }).code
+          : "";
+
+      // ユーザー自身によるキャンセルは正常操作として扱う
+      if (
+        errorCode === "auth/popup-closed-by-user" ||
+        errorCode === "auth/cancelled-popup-request"
+      ) {
+        return;
+      }
+
+      console.error("[LOGIN] Google login failed:", error);
+      alert("Googleログインに失敗しました。もう一度お試しください。");
+    } finally {
       setLoggingIn(false);
     }
   };
@@ -270,6 +288,39 @@ export default function Login() {
             <br />
             機能をご利用いただけます。
           </Typography>
+        </Box>
+        <Box
+          sx={{
+            mt: 4,
+            textAlign: "center",
+          }}
+        >
+          <Typography
+            component="span"
+            sx={{
+              fontSize: 13,
+              color: "#707784",
+            }}
+          >
+            はじめて利用する方は
+          </Typography>
+
+          <Button
+            component={NextLink}
+            href="/auth/signup"
+            variant="text"
+            sx={{
+              ml: 0.5,
+              minWidth: "auto",
+              px: 0.5,
+              color: "#27863B",
+              fontSize: 13,
+              fontWeight: 700,
+              textTransform: "none",
+            }}
+          >
+            新規登録
+          </Button>
         </Box>
 
         {/* 下部メッセージ */}
