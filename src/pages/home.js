@@ -91,9 +91,12 @@ function TodayDetail({
   onNextDay,
   onToday,
   selectedZuboraSet,
+  zuboraSets,
+  onSelectZuboraSet,
   onApplyZuboraSet,
   onCloseZuboraDialog,
 }) {
+  const [zuboraSelectOpen, setZuboraSelectOpen] = useState(false);
   if (loading) {
     return (
       <Stack spacing={2} sx={{ mt: 3 }}>
@@ -606,7 +609,7 @@ function TodayDetail({
       </Stack>
 
       <Dialog
-        open={!!selectedZuboraSet}
+        open={!!selectedZuboraSet && !zuboraSelectOpen}
         onClose={actionBusy ? undefined : onCloseZuboraDialog}
         fullWidth
         maxWidth="sm"
@@ -666,39 +669,68 @@ function TodayDetail({
               border: "1px solid #F3D6A3",
             }}
           >
-            <Typography
-              sx={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: "#B87818",
-              }}
+            <Stack
+              direction="row"
+              alignItems="flex-start"
+              justifyContent="space-between"
+              spacing={2}
             >
-              選ばれたズボラセット
-            </Typography>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  sx={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#B87818",
+                  }}
+                >
+                  選ばれたズボラセット
+                </Typography>
 
-            <Typography
-              sx={{
-                mt: 0.5,
-                fontSize: 17,
-                fontWeight: 700,
-                color: "#333333",
-              }}
-            >
-              {selectedZuboraSet?.name || "名称未設定"}
-            </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.5,
+                    fontSize: 17,
+                    fontWeight: 700,
+                    color: "#333333",
+                  }}
+                >
+                  {selectedZuboraSet?.name || "名称未設定"}
+                </Typography>
 
-            {selectedZuboraSet?.description && (
-              <Typography
+                {selectedZuboraSet?.description && (
+                  <Typography
+                    sx={{
+                      mt: 0.6,
+                      fontSize: 13,
+                      color: "#777777",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    {selectedZuboraSet.description}
+                  </Typography>
+                )}
+              </Box>
+
+              <Button
+                type="button"
+                onClick={() => setZuboraSelectOpen(true)}
+                disabled={actionBusy}
                 sx={{
-                  mt: 0.6,
+                  minWidth: "auto",
+                  px: 1,
+                  color: "#D98300",
                   fontSize: 13,
-                  color: "#777777",
-                  lineHeight: 1.7,
+                  fontWeight: 700,
+                  textTransform: "none",
+                  whiteSpace: "nowrap",
+                  "&:hover": {
+                    bgcolor: "#FFF3E0",
+                  },
                 }}
               >
-                {selectedZuboraSet.description}
-              </Typography>
-            )}
+                変更 ›
+              </Button>
+            </Stack>
           </Box>
 
           <Stack spacing={1.5}>
@@ -882,6 +914,137 @@ function TodayDetail({
               "&:hover": {
                 bgcolor: "#F7F3EE",
               },
+            }}
+          >
+            キャンセル
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={zuboraSelectOpen}
+        onClose={() => setZuboraSelectOpen(false)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            bgcolor: "#FFFDFA",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            px: { xs: 2.5, sm: 3.5 },
+            pt: 3,
+            pb: 1,
+            fontSize: 20,
+            fontWeight: 700,
+            color: "#333333",
+          }}
+        >
+          ズボラセットを選ぶ
+        </DialogTitle>
+
+        <DialogContent
+          sx={{
+            px: { xs: 2.5, sm: 3.5 },
+            pt: "12px !important",
+            pb: 2,
+          }}
+        >
+          <Stack spacing={1.5}>
+            {zuboraSets.map((zuboraSet) => {
+              const isSelected = selectedZuboraSet?.id === zuboraSet.id;
+
+              return (
+                <Box
+                  key={zuboraSet.id}
+                  component="button"
+                  type="button"
+                  onClick={() => {
+                    onSelectZuboraSet(zuboraSet);
+                    setZuboraSelectOpen(false);
+                  }}
+                  sx={{
+                    width: "100%",
+                    p: 2,
+                    borderRadius: 3,
+                    border: isSelected
+                      ? "2px solid #FFB830"
+                      : "1px solid #E8DED1",
+                    bgcolor: isSelected ? "#FFF8EC" : "#FFFFFF",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    font: "inherit",
+                    "&:hover": {
+                      bgcolor: "#FFF8EC",
+                      borderColor: "#FFB830",
+                    },
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    spacing={2}
+                  >
+                    <Box>
+                      <Typography
+                        sx={{
+                          fontSize: 15,
+                          fontWeight: 700,
+                          color: "#333333",
+                        }}
+                      >
+                        {zuboraSet.name || "名称未設定"}
+                      </Typography>
+
+                      {zuboraSet.description && (
+                        <Typography
+                          sx={{
+                            mt: 0.5,
+                            fontSize: 12,
+                            color: "#777777",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {zuboraSet.description}
+                        </Typography>
+                      )}
+                    </Box>
+
+                    <Box
+                      sx={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        border: isSelected
+                          ? "6px solid #FFB830"
+                          : "2px solid #BBBBBB",
+                        bgcolor: "#FFFFFF",
+                        flexShrink: 0,
+                      }}
+                    />
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        </DialogContent>
+
+        <DialogActions
+          sx={{
+            px: 3.5,
+            pb: 3,
+          }}
+        >
+          <Button
+            type="button"
+            onClick={() => setZuboraSelectOpen(false)}
+            sx={{
+              color: "#777777",
+              fontWeight: 600,
+              textTransform: "none",
             }}
           >
             キャンセル
@@ -1510,13 +1673,15 @@ export default function HomeTodayMenu() {
           onToday={goToday}
           selectedZuboraSet={selectedZuboraSet}
           onApplyZuboraSet={applySelectedZuboraSet}
+          onSelectZuboraSet={setSelectedZuboraSet}
+          zuboraSets={zuboraSets}
         />
 
         {hasEmptySlot && (
           <Card
             sx={{
               mt: 2,
-              mb: 2,
+              mb: 1,
               p: { xs: 2, md: 2.5 },
               borderRadius: 4,
               border: "1.5px solid #F3C46B",
@@ -1611,6 +1776,34 @@ export default function HomeTodayMenu() {
             </Stack>
           </Card>
         )}
+
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            mb: 2,
+          }}
+        >
+          <Button
+            component={NextLink}
+            href="/recipes/zubora"
+            variant="text"
+            sx={{
+              minWidth: "auto",
+              px: 1,
+              color: "#B87818",
+              fontSize: 12,
+              fontWeight: 700,
+              textTransform: "none",
+              "&:hover": {
+                bgcolor: "transparent",
+                color: "#9E6413",
+              },
+            }}
+          >
+            ズボラセットを管理
+          </Button>
+        </Box>
 
         <Box sx={{ mt: 4 }}>
           {recentRecipes.length > 0 && (
