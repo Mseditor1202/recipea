@@ -1,6 +1,10 @@
 import React, { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { signInWithPopup, onAuthStateChanged } from "firebase/auth";
+import {
+  signInWithPopup,
+  onAuthStateChanged,
+  getAdditionalUserInfo,
+} from "firebase/auth";
 import { auth, provider } from "@/lib/firebase";
 import { useRouter } from "next/router";
 import NextLink from "next/link";
@@ -34,11 +38,19 @@ export default function Signup() {
     setSigningUp(true);
 
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+
+      const additionalInfo = getAdditionalUserInfo(result);
+      const isNewUser = additionalInfo?.isNewUser ?? false;
 
       await waitForFirebaseUser();
 
       setIsAuth(true);
+
+      if (isNewUser) {
+        await router.replace("/auth/welcome");
+        return;
+      }
 
       await router.replace("/home");
     } catch (error: unknown) {
@@ -50,7 +62,6 @@ export default function Signup() {
           ? (error as { code: string }).code
           : "";
 
-      // ユーザー自身によるキャンセルは正常操作として扱う
       if (
         errorCode === "auth/popup-closed-by-user" ||
         errorCode === "auth/cancelled-popup-request"
