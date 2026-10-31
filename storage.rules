@@ -3,6 +3,7 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // レシピ画像
     match /recipes/{userId}/{allPaths=**} {
       allow read: if true;
 
@@ -11,6 +12,24 @@ service firebase.storage {
         && request.auth.uid == userId;
     }
 
+    // プロフィール画像
+    match /profileImages/{userId}/{fileName} {
+      allow read:
+        if request.auth != null
+        && request.auth.uid == userId;
+
+      allow create, update:
+        if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches("image/(jpeg|png|webp)");
+
+      allow delete:
+        if request.auth != null
+        && request.auth.uid == userId;
+    }
+
+    // その他はすべて拒否
     match /{allPaths=**} {
       allow read, write: if false;
     }
