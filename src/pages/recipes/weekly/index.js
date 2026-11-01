@@ -823,86 +823,8 @@ export default function WeeklyPage() {
 
                   <Chip size="small" label={`weekKey: ${weekKey}`} />
                 </Stack>
-
-                {/* 曜日タブ */}
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{ mt: 2, flexWrap: "wrap" }}
-                >
-                  {DAY_META.map((d) => {
-                    const active = d.key === selectedDayKey;
-                    const dk = getDayKeyFromWeekAndDay(weekKey, d.key);
-                    return (
-                      <Button
-                        key={d.key}
-                        variant={active ? "contained" : "outlined"}
-                        size="small"
-                        sx={{ borderRadius: 999, textTransform: "none" }}
-                        onClick={() => setSelectedDayKey(d.key)}
-                      >
-                        {d.label} ({dk.slice(5)})
-                      </Button>
-                    );
-                  })}
-                </Stack>
-
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{ mt: 2, flexWrap: "wrap" }}
-                >
-                  <Chip size="small" label={`表示中: ${dateKey}`} />
-                  <Chip
-                    size="small"
-                    label={`recipes: ${recipeList.length}件`}
-                  />
-                  <Chip
-                    size="small"
-                    label={`dailySets: ${dailySets.length}件`}
-                  />
-                  {queryDayKey && (
-                    <Chip
-                      size="small"
-                      color="primary"
-                      label={`fromHome: ${queryDayKey}`}
-                    />
-                  )}
-                </Stack>
               </CardContent>
             </Card>
-
-            {loading ? (
-              <ListSkeleton count={3} />
-            ) : loadError ? (
-              <ErrorState
-                title="献立を読み込めませんでした"
-                description="通信状況を確認して、もう一度お試しください。"
-                onRetry={() => {
-                  setLoading(true);
-                  setLoadError(false);
-
-                  getDoc(doc(db, "weeklyDaySets", `${user.uid}_${dateKey}`))
-                    .then((snap) => {
-                      if (snap.exists()) {
-                        setDayDoc(ensureDayDoc(snap.data()));
-                      } else {
-                        setDayDoc(ensureDayDoc(null));
-                      }
-                    })
-                    .catch((e) => {
-                      console.error(e);
-                      setLoadError(true);
-                    })
-                    .finally(() => {
-                      setLoading(false);
-                    });
-                }}
-              />
-            ) : null}
-
-            {errorMsg && <Alert severity="error">{errorMsg}</Alert>}
-            {saveMsg && <Alert severity="success">{saveMsg}</Alert>}
 
             {weekLoading ? (
               <ListSkeleton count={3} />
