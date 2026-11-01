@@ -137,6 +137,25 @@ export default function WeeklyPage() {
   // 週移動
   const [weekOffset, setWeekOffset] = useState(0);
 
+  useEffect(() => {
+    if (!router.isReady || !baseSunday) return;
+
+    const queryWeekKey = router.query.weekKey;
+
+    if (typeof queryWeekKey !== "string") return;
+
+    const matchedOffset = Array.from(
+      { length: MAX_WEEKS },
+      (_, index) => index,
+    ).find(
+      (offset) => getWeekKeyFromOffset(baseSunday, offset) === queryWeekKey,
+    );
+
+    if (matchedOffset !== undefined) {
+      setWeekOffset(matchedOffset);
+    }
+  }, [router.isReady, router.query.weekKey, baseSunday]);
+
   const weekKey = useMemo(() => {
     if (!baseSunday) return null;
     return getWeekKeyFromOffset(baseSunday, weekOffset);
