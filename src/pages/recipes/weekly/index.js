@@ -58,13 +58,13 @@ function getTodayDayKey() {
 const MAX_WEEKS = 8;
 
 const DAY_META = [
+  { key: "sun", label: "日" },
   { key: "mon", label: "月" },
   { key: "tue", label: "火" },
   { key: "wed", label: "水" },
   { key: "thu", label: "木" },
   { key: "fri", label: "金" },
   { key: "sat", label: "土" },
-  { key: "sun", label: "日" },
 ];
 
 const MEALS = [
@@ -170,16 +170,16 @@ function readDailySetSlot(ds, slotKey) {
   return null;
 }
 
-/** ✅ 追加：YYYY-MM-DD の月曜を返す（JST） */
-function getMondayKeyFromDateKey(dateKey) {
+function getSundayKeyFromDateKey(dateKey) {
   const d = new Date(`${dateKey}T00:00:00+09:00`);
-  const day = d.getDay(); // 0(日)〜6(土)
-  const diff = (day + 6) % 7; // 月曜:0
-  d.setDate(d.getDate() - diff);
+
+  // getDay(): 日=0, 月=1 ... 土=6
+  d.setDate(d.getDate() - d.getDay());
 
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
+
   return `${y}-${m}-${dd}`;
 }
 
@@ -196,20 +196,19 @@ export default function WeeklyPage() {
   const router = useRouter();
   const { dayKey: queryDayKey } = router.query;
 
-  // ✅ hydration対策：mounted後に baseMonday を確定
   const [mounted, setMounted] = useState(false);
-  const [baseMonday, setBaseMonday] = useState(null);
+  const [baseSunday, setBaseSunday] = useState(null);
 
   useEffect(() => {
     setMounted(true);
 
     const today = new Date();
-    const day = today.getDay(); // 0(日)〜6(土)
-    const diff = (day + 6) % 7; // 月曜:0
-    today.setDate(today.getDate() - diff);
+
+    // 今週の日曜日
+    today.setDate(today.getDate() - today.getDay());
     today.setHours(0, 0, 0, 0);
 
-    setBaseMonday(today);
+    setBaseSunday(today);
   }, []);
 
   // 週移動
@@ -218,9 +217,9 @@ export default function WeeklyPage() {
   const [selectedDayKey, setSelectedDayKey] = useState(getTodayDayKey());
 
   const weekKey = useMemo(() => {
-    if (!baseMonday) return null;
-    return getWeekKeyFromOffset(baseMonday, weekOffset);
-  }, [baseMonday, weekOffset]);
+    if (!baseSunday) return null;
+    return getWeekKeyFromOffset(baseSunday, weekOffset);
+  }, [baseSunday, weekOffset]);
 
   const dateKey = useMemo(() => {
     if (!weekKey) return null;
@@ -231,16 +230,16 @@ export default function WeeklyPage() {
   const appliedQueryRef = useRef(false);
   useEffect(() => {
     if (!router.isReady) return;
-    if (!baseMonday) return;
+    if (!baseSunday) return;
     if (appliedQueryRef.current) return;
 
     if (!queryDayKey || typeof queryDayKey !== "string") return;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(queryDayKey)) return;
 
-    const mondayKey = getMondayKeyFromDateKey(queryDayKey);
+    const sundayKey = getSundayKeyFromDateKey(queryDayKey);
 
-    const base = new Date(baseMonday);
-    const target = new Date(`${mondayKey}T00:00:00+09:00`);
+    const base = new Date(baseSunday);
+    const target = new Date(`${sundayKey}T00:00:00+09:00`);
     const diffMs = target.getTime() - base.getTime();
     const diffWeeks = Math.round(diffMs / (1000 * 60 * 60 * 24 * 7));
 
@@ -250,7 +249,7 @@ export default function WeeklyPage() {
     setSelectedDayKey(getDayKeyLabelFromDateKey(queryDayKey));
 
     appliedQueryRef.current = true;
-  }, [router.isReady, baseMonday, queryDayKey]);
+  }, [router.isReady, baseSunday, queryDayKey]);
 
   // 状態
   const [loading, setLoading] = useState(true);
@@ -260,6 +259,9 @@ export default function WeeklyPage() {
   const [saveMsg, setSaveMsg] = useState("");
 
   const [dayDoc, setDayDoc] = useState(ensureDayDoc(null));
+  const [weekDocs, setWeekDocs] = useState({});
+  const [weekLoading, setWeekLoading] = useState(true);
+  const [weekLoadError, setWeekLoadError] = useState(false);
 
   // recipes
   const [recipeList, setRecipeList] = useState([]);
@@ -342,10 +344,72 @@ export default function WeeklyPage() {
 
     run();
   }, [dateKey, user]);
+  useEffect(() => {
+    if (!weekKey || !user) return;
+
+    const fetchWeek = async () => {
+      setWeekLoading(true);
+      setWeekLoadError(false);
+
+      try {
+        const dateKeys = DAY_META.map((day) =>
+          getDayKeyFromWeekAndDay(weekKey, day.key),
+        );
+
+        const snapshots = await Promise.all(
+          dateKeys.map((dk) =>
+            getDoc(doc(db, "weeklyDaySets", `${user.uid}_${dk}`)),
+          ),
+        );
+
+        const next = {};
+
+        dateKeys.forEach((dk, index) => {
+          const snapshot = snapshots[index];
+
+          next[dk] = snapshot.exists()
+            ? ensureDayDoc(snapshot.data())
+            : ensureDayDoc(null);
+        });
+
+        setWeekDocs(next);
+      } catch (error) {
+        console.error("[WEEKLY] fetch week failed:", error);
+        setWeekLoadError(true);
+      } finally {
+        setWeekLoading(false);
+      }
+    };
+
+    fetchWeek();
+  }, [weekKey, user]);
 
   // 表示用
   const getRecipeName = (id) => recipeMap?.[id]?.recipeName || "未設定";
   const getRecipeImg = (id) => recipeMap?.[id]?.imageUrl || "";
+
+  const getMealPreview = (mealData) => {
+    if (!mealData) {
+      return {
+        recipeIds: [],
+        imageUrl: "",
+        title: "",
+      };
+    }
+
+    const recipeIds = SLOTS.map((slot) => mealData?.[slot.key]).filter(Boolean);
+
+    const recipes = recipeIds.map((id) => recipeMap[id]).filter(Boolean);
+
+    return {
+      recipeIds,
+      imageUrl: recipes[0]?.imageUrl || "",
+      title: recipes
+        .map((recipe) => recipe.recipeName)
+        .filter(Boolean)
+        .join("・"),
+    };
+  };
 
   // Drawer
   const openPicker = (meal, slot) => {
@@ -687,7 +751,7 @@ export default function WeeklyPage() {
     setWeekOffset((p) => Math.min(MAX_WEEKS - 1, p + 1));
 
   // hydration対策
-  if (!mounted || !baseMonday || !weekKey || !dateKey) {
+  if (!mounted || !baseSunday || !weekKey || !dateKey) {
     return (
       <Box sx={{ p: 4 }}>
         <Typography>読み込み中...</Typography>
@@ -839,6 +903,248 @@ export default function WeeklyPage() {
 
             {errorMsg && <Alert severity="error">{errorMsg}</Alert>}
             {saveMsg && <Alert severity="success">{saveMsg}</Alert>}
+
+            {weekLoading ? (
+              <ListSkeleton count={3} />
+            ) : weekLoadError ? (
+              <ErrorState
+                title="週間献立を読み込めませんでした"
+                description="通信状態を確認して、もう一度お試しください。"
+                onRetry={() => router.reload()}
+              />
+            ) : (
+              <Card
+                sx={{
+                  borderRadius: 3,
+                  border: "1px solid #F1E5D5",
+                  boxShadow: "0 8px 24px rgba(80, 60, 30, 0.06)",
+                  overflow: "hidden",
+                }}
+              >
+                <CardContent sx={{ p: 0 }}>
+                  <Box sx={{ overflowX: "auto" }}>
+                    <Box
+                      sx={{
+                        minWidth: 900,
+                        display: "grid",
+                        gridTemplateColumns:
+                          "90px repeat(7, minmax(110px, 1fr))",
+                      }}
+                    >
+                      {/* 左上 */}
+                      <Box
+                        sx={{
+                          borderRight: "1px solid #F1E5D5",
+                          borderBottom: "1px solid #F1E5D5",
+                          bgcolor: "#FFFDFA",
+                        }}
+                      />
+
+                      {/* 曜日 */}
+                      {DAY_META.map((day) => {
+                        const dk = getDayKeyFromWeekAndDay(weekKey, day.key);
+
+                        return (
+                          <Box
+                            key={day.key}
+                            sx={{
+                              py: 1.5,
+                              textAlign: "center",
+                              borderRight: "1px solid #F1E5D5",
+                              borderBottom: "1px solid #F1E5D5",
+                              bgcolor: "#FFFDFA",
+                            }}
+                          >
+                            <Typography
+                              sx={{
+                                fontSize: 13,
+                                fontWeight: 800,
+                                color:
+                                  day.key === "sun"
+                                    ? "#D65A4A"
+                                    : day.key === "sat"
+                                      ? "#4277B8"
+                                      : "#333333",
+                              }}
+                            >
+                              {dk.slice(8)}
+                            </Typography>
+
+                            <Typography
+                              sx={{
+                                fontSize: 12,
+                                color:
+                                  day.key === "sun"
+                                    ? "#D65A4A"
+                                    : day.key === "sat"
+                                      ? "#4277B8"
+                                      : "#777777",
+                              }}
+                            >
+                              {day.label}
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+
+                      {/* 朝・昼・夕 */}
+                      {MEALS.map((meal) => (
+                        <React.Fragment key={meal.key}>
+                          <Box
+                            sx={{
+                              minHeight: 120,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRight: "1px solid #F1E5D5",
+                              borderBottom: "1px solid #F1E5D5",
+                              bgcolor: "#FFF9EF",
+                            }}
+                          >
+                            <Typography
+                              sx={{
+                                fontWeight: 800,
+                                fontSize: 13,
+                              }}
+                            >
+                              {meal.label}
+                            </Typography>
+                          </Box>
+
+                          {DAY_META.map((day) => {
+                            const dk = getDayKeyFromWeekAndDay(
+                              weekKey,
+                              day.key,
+                            );
+                            const dayData = weekDocs[dk];
+                            const preview = getMealPreview(dayData?.[meal.key]);
+                            const hasMeal = preview.recipeIds.length > 0;
+
+                            return (
+                              <Box
+                                key={`${dk}-${meal.key}`}
+                                sx={{
+                                  minHeight: 120,
+                                  p: 1,
+                                  borderRight: "1px solid #F1E5D5",
+                                  borderBottom: "1px solid #F1E5D5",
+                                  bgcolor: "#FFFFFF",
+                                }}
+                              >
+                                <Button
+                                  fullWidth
+                                  onClick={() =>
+                                    router.push(`/recipes/weekly/day/${dk}`)
+                                  }
+                                  sx={{
+                                    height: "100%",
+                                    minHeight: 100,
+                                    p: 0.75,
+                                    borderRadius: 2,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 0.5,
+                                    color: "#333333",
+                                    textTransform: "none",
+                                    "&:hover": {
+                                      bgcolor: "#FFF8EC",
+                                    },
+                                  }}
+                                >
+                                  {hasMeal ? (
+                                    <>
+                                      {preview.imageUrl && (
+                                        <Box
+                                          component="img"
+                                          src={preview.imageUrl}
+                                          alt={preview.title}
+                                          sx={{
+                                            width: 56,
+                                            height: 56,
+                                            borderRadius: 2,
+                                            objectFit: "cover",
+                                          }}
+                                        />
+                                      )}
+
+                                      <Typography
+                                        sx={{
+                                          width: "100%",
+                                          fontSize: 11,
+                                          lineHeight: 1.4,
+                                          fontWeight: 700,
+                                          overflow: "hidden",
+                                          display: "-webkit-box",
+                                          WebkitBoxOrient: "vertical",
+                                          WebkitLineClamp: 2,
+                                        }}
+                                      >
+                                        {preview.title}
+                                      </Typography>
+                                    </>
+                                  ) : (
+                                    <Typography
+                                      sx={{
+                                        fontSize: 24,
+                                        lineHeight: 1,
+                                        fontWeight: 400,
+                                        color: "#4B8B4B",
+                                      }}
+                                    >
+                                      ＋
+                                    </Typography>
+                                  )}
+                                </Button>
+                              </Box>
+                            );
+                          })}
+                        </React.Fragment>
+                      ))}
+                    </Box>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      textAlign: "center",
+                      bgcolor: "#FFFDFA",
+                    }}
+                  >
+                    <Button
+                      variant="contained"
+                      onClick={() =>
+                        router.push(`/recipes/weekly/zubora?weekKey=${weekKey}`)
+                      }
+                      sx={{
+                        minWidth: 240,
+                        py: 1.2,
+                        borderRadius: 2,
+                        bgcolor: "#2F7D32",
+                        fontWeight: 800,
+                        boxShadow: "none",
+                        textTransform: "none",
+                        "&:hover": {
+                          bgcolor: "#286C2B",
+                          boxShadow: "none",
+                        },
+                      }}
+                    >
+                      おまかせで決める
+                    </Button>
+
+                    <Typography
+                      sx={{
+                        mt: 1,
+                        fontSize: 12,
+                        color: "#888888",
+                      }}
+                    >
+                      または、＋から1日ずつ追加できます
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            )}
 
             {!loading && !loadError && (
               <>
