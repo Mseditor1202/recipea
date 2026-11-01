@@ -41,16 +41,44 @@ const DAY_META = [
 ];
 
 const MEALS = [
-  { key: "breakfast", label: "朝" },
-  { key: "lunch", label: "昼" },
-  { key: "dinner", label: "夜" },
+  {
+    key: "breakfast",
+    label: "朝",
+    icon: "/icons/rakusuru/content/lg_content_breakfast_time.png",
+  },
+  {
+    key: "lunch",
+    label: "昼",
+    icon: "/icons/rakusuru/content/lg_content_lunch_time.png",
+  },
+  {
+    key: "dinner",
+    label: "夜",
+    icon: "/icons/rakusuru/content/lg_content_dinner_time.png",
+  },
 ];
 
 const SLOTS = [
-  { key: "staple", label: "主食" },
-  { key: "main", label: "主菜" },
-  { key: "side", label: "副菜" },
-  { key: "soup", label: "汁物" },
+  {
+    key: "staple",
+    label: "主食",
+    icon: "/icons/rakusuru/content/lg_content_staple_food.png",
+  },
+  {
+    key: "main",
+    label: "主菜",
+    icon: "/icons/rakusuru/content/lg_content_main_dish.png",
+  },
+  {
+    key: "side",
+    label: "副菜",
+    icon: "/icons/rakusuru/content/lg_content_side_dish.png",
+  },
+  {
+    key: "soup",
+    label: "汁物",
+    icon: "/icons/rakusuru/content/lg_content_soup.png",
+  },
 ];
 
 const CATEGORY_LABEL = {
@@ -347,6 +375,46 @@ export default function WeeklyZuboraPage() {
         imageUrl: recipe?.imageUrl || "",
       };
     });
+  };
+  const getRecipePreview = (recipeId) => {
+    const recipe = recipeId ? recipeMap[recipeId] : null;
+
+    return {
+      recipeId: recipeId || null,
+      name:
+        recipe?.recipeName ||
+        recipe?.name ||
+        recipe?.title ||
+        (recipeId ? "料理名未設定" : ""),
+      imageUrl: recipe?.imageUrl || "",
+    };
+  };
+
+  const getConfirmationSlot = (dayData, zuboraSet, mealKey, slotKey) => {
+    const currentRecipeId = dayData?.[mealKey]?.[slotKey] || null;
+
+    const zuboraRecipeId = zuboraSet?.meals?.[mealKey]?.[slotKey] || null;
+
+    if (currentRecipeId) {
+      return {
+        status: "keep",
+        ...getRecipePreview(currentRecipeId),
+      };
+    }
+
+    if (zuboraRecipeId) {
+      return {
+        status: "add",
+        ...getRecipePreview(zuboraRecipeId),
+      };
+    }
+
+    return {
+      status: "empty",
+      recipeId: null,
+      name: "空きのまま",
+      imageUrl: "",
+    };
   };
 
   const handleApply = async () => {
@@ -790,15 +858,35 @@ export default function WeeklyZuboraPage() {
                                               bgcolor: "#F4F7E9",
                                             }}
                                           >
-                                            <Typography
-                                              variant="body2"
-                                              sx={{
-                                                fontWeight: 800,
-                                                color: "#444444",
-                                              }}
+                                            <Stack
+                                              direction="row"
+                                              spacing={0.75}
+                                              alignItems="center"
+                                              justifyContent="center"
                                             >
-                                              {slot.label}
-                                            </Typography>
+                                              <Box
+                                                component="img"
+                                                src={slot.icon}
+                                                alt=""
+                                                aria-hidden="true"
+                                                sx={{
+                                                  width: 30,
+                                                  height: 30,
+                                                  objectFit: "contain",
+                                                  flexShrink: 0,
+                                                }}
+                                              />
+
+                                              <Typography
+                                                variant="body2"
+                                                sx={{
+                                                  fontWeight: 800,
+                                                  color: "#444444",
+                                                }}
+                                              >
+                                                {slot.label}
+                                              </Typography>
+                                            </Stack>
                                           </Box>
                                         ))}
 
@@ -821,11 +909,30 @@ export default function WeeklyZuboraPage() {
                                                   bgcolor: "#F4F7E9",
                                                 }}
                                               >
-                                                <Typography
-                                                  sx={{ fontWeight: 800 }}
+                                                <Stack
+                                                  spacing={0.5}
+                                                  alignItems="center"
                                                 >
-                                                  {meal.label}
-                                                </Typography>
+                                                  <Box
+                                                    component="img"
+                                                    src={meal.icon}
+                                                    alt=""
+                                                    aria-hidden="true"
+                                                    sx={{
+                                                      width: 34,
+                                                      height: 34,
+                                                      objectFit: "contain",
+                                                    }}
+                                                  />
+
+                                                  <Typography
+                                                    sx={{
+                                                      fontWeight: 800,
+                                                    }}
+                                                  >
+                                                    {meal.label}
+                                                  </Typography>
+                                                </Stack>
                                               </Box>
 
                                               {/* 主食・主菜・副菜・汁物 */}
@@ -985,83 +1092,276 @@ export default function WeeklyZuboraPage() {
                   </Typography>
 
                   <Alert severity="info" sx={{ mt: 2 }}>
-                    登録済みの献立は変更しません。 空いている枠だけに 「
-                    {selectedSet?.name}」を適用します。
+                    緑色の「追加」の献立だけ反映します。
+                    登録済みの献立は変更しません。
                   </Alert>
 
-                  <Stack spacing={1.5} sx={{ mt: 2 }}>
-                    {confirmationRows.map((row) => (
-                      <Card
-                        key={row.dateKey}
-                        variant="outlined"
-                        sx={{
-                          borderRadius: 2,
-                          borderColor: "#F1E5D5",
-                        }}
-                      >
-                        <CardContent>
-                          <Typography
-                            sx={{
-                              fontWeight: 800,
-                            }}
-                          >
-                            {row.dateLabel}
-                          </Typography>
+                  <Stack spacing={2} sx={{ mt: 2 }}>
+                    {confirmationRows.map((row) => {
+                      const dayData = weekDocs[row.dateKey];
 
-                          <Stack spacing={0.75} sx={{ mt: 1.25 }}>
-                            {MEALS.map((meal) => {
-                              const mealSummary = row.summary.meals[meal.key];
+                      return (
+                        <Card
+                          key={row.dateKey}
+                          variant="outlined"
+                          sx={{
+                            borderRadius: 2.5,
+                            borderColor: "#F1E5D5",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <CardContent>
+                            <Typography
+                              sx={{
+                                fontWeight: 800,
+                                mb: 1.5,
+                              }}
+                            >
+                              {row.dateLabel}
+                            </Typography>
 
-                              return (
-                                <Stack
-                                  key={meal.key}
-                                  direction="row"
-                                  spacing={1}
-                                  alignItems="center"
-                                  sx={{
-                                    flexWrap: "wrap",
-                                  }}
-                                >
-                                  <Typography
-                                    variant="body2"
+                            <Box
+                              sx={{
+                                overflowX: "auto",
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  minWidth: 680,
+                                  display: "grid",
+                                  gridTemplateColumns:
+                                    "72px repeat(4, minmax(120px, 1fr))",
+                                  gap: 1,
+                                }}
+                              >
+                                {/* 左上 */}
+                                <Box />
+
+                                {/* 主食・主菜・副菜・汁物 */}
+                                {SLOTS.map((slot) => (
+                                  <Box
+                                    key={slot.key}
                                     sx={{
-                                      width: 36,
-                                      fontWeight: 800,
+                                      py: 0.75,
+                                      px: 1,
+                                      textAlign: "center",
+                                      borderRadius: 1.5,
+                                      bgcolor: "#F4F7E9",
                                     }}
                                   >
-                                    {meal.label}
-                                  </Typography>
+                                    <Stack
+                                      direction="row"
+                                      spacing={0.75}
+                                      alignItems="center"
+                                      justifyContent="center"
+                                    >
+                                      <Box
+                                        component="img"
+                                        src={slot.icon}
+                                        alt=""
+                                        aria-hidden="true"
+                                        sx={{
+                                          width: 30,
+                                          height: 30,
+                                          objectFit: "contain",
+                                          flexShrink: 0,
+                                        }}
+                                      />
 
-                                  {mealSummary.applyCount > 0 && (
-                                    <Chip
-                                      size="small"
-                                      color="success"
-                                      label={`${mealSummary.applyCount}枠追加`}
-                                    />
-                                  )}
+                                      <Typography
+                                        variant="body2"
+                                        sx={{
+                                          fontWeight: 800,
+                                          color: "#444444",
+                                        }}
+                                      >
+                                        {slot.label}
+                                      </Typography>
+                                    </Stack>
+                                  </Box>
+                                ))}
 
-                                  {mealSummary.existingCount > 0 && (
-                                    <Chip
-                                      size="small"
-                                      variant="outlined"
-                                      label={`${mealSummary.existingCount}枠 登録済み`}
-                                    />
-                                  )}
+                                {/* 朝・昼・夜 */}
+                                {MEALS.map((meal) => (
+                                  <Fragment key={meal.key}>
+                                    <Box
+                                      sx={{
+                                        minHeight: 148,
+                                        display: "grid",
+                                        placeItems: "center",
+                                        borderRadius: 2,
+                                        bgcolor: "#F4F7E9",
+                                      }}
+                                    >
+                                      <Stack spacing={0.5} alignItems="center">
+                                        <Box
+                                          component="img"
+                                          src={meal.icon}
+                                          alt=""
+                                          aria-hidden="true"
+                                          sx={{
+                                            width: 34,
+                                            height: 34,
+                                            objectFit: "contain",
+                                          }}
+                                        />
 
-                                  {mealSummary.remainEmptyCount > 0 && (
-                                    <Chip
-                                      size="small"
-                                      variant="outlined"
-                                      label={`${mealSummary.remainEmptyCount}枠 空きのまま`}
-                                    />
-                                  )}
-                                </Stack>
-                              );
-                            })}
-                          </Stack>
-                        </CardContent>
-                      </Card>
-                    ))}
+                                        <Typography
+                                          sx={{
+                                            fontWeight: 800,
+                                          }}
+                                        >
+                                          {meal.label}
+                                        </Typography>
+                                      </Stack>
+                                    </Box>
+
+                                    {SLOTS.map((slot) => {
+                                      const item = getConfirmationSlot(
+                                        dayData,
+                                        selectedSet,
+                                        meal.key,
+                                        slot.key,
+                                      );
+
+                                      const isAdd = item.status === "add";
+                                      const isKeep = item.status === "keep";
+
+                                      return (
+                                        <Box
+                                          key={`${meal.key}-${slot.key}`}
+                                          sx={{
+                                            minWidth: 0,
+                                            overflow: "hidden",
+                                            borderRadius: 2,
+                                            bgcolor: isAdd
+                                              ? "#F3FAF3"
+                                              : "#FFFFFF",
+                                            border: isAdd
+                                              ? "2px solid #66BB6A"
+                                              : isKeep
+                                                ? "1px solid #E0E0E0"
+                                                : "1px dashed #D8D0C4",
+                                          }}
+                                        >
+                                          {item.status === "empty" ? (
+                                            <Box
+                                              sx={{
+                                                minHeight: 144,
+                                                display: "grid",
+                                                placeItems: "center",
+                                                bgcolor: "#FFFDFA",
+                                              }}
+                                            >
+                                              <Stack
+                                                spacing={0.5}
+                                                alignItems="center"
+                                              >
+                                                <Typography
+                                                  sx={{
+                                                    fontSize: 20,
+                                                    color: "#AAA095",
+                                                  }}
+                                                >
+                                                  ＋
+                                                </Typography>
+
+                                                <Typography
+                                                  variant="caption"
+                                                  color="text.secondary"
+                                                >
+                                                  空きのまま
+                                                </Typography>
+                                              </Stack>
+                                            </Box>
+                                          ) : (
+                                            <>
+                                              <Box
+                                                sx={{
+                                                  position: "relative",
+                                                }}
+                                              >
+                                                {item.imageUrl ? (
+                                                  <Box
+                                                    component="img"
+                                                    src={item.imageUrl}
+                                                    alt={item.name}
+                                                    sx={{
+                                                      width: "100%",
+                                                      height: 82,
+                                                      objectFit: "cover",
+                                                      display: "block",
+                                                    }}
+                                                  />
+                                                ) : (
+                                                  <Box
+                                                    sx={{
+                                                      height: 82,
+                                                      bgcolor: "#F5F1EA",
+                                                      display: "grid",
+                                                      placeItems: "center",
+                                                    }}
+                                                  >
+                                                    <Typography
+                                                      variant="caption"
+                                                      color="text.secondary"
+                                                    >
+                                                      画像なし
+                                                    </Typography>
+                                                  </Box>
+                                                )}
+
+                                                <Chip
+                                                  size="small"
+                                                  label={
+                                                    isAdd ? "追加" : "そのまま"
+                                                  }
+                                                  color={
+                                                    isAdd
+                                                      ? "success"
+                                                      : "default"
+                                                  }
+                                                  sx={{
+                                                    position: "absolute",
+                                                    top: 6,
+                                                    left: 6,
+                                                    fontWeight: 800,
+                                                  }}
+                                                />
+                                              </Box>
+
+                                              <Typography
+                                                variant="body2"
+                                                title={item.name}
+                                                sx={{
+                                                  px: 0.75,
+                                                  py: 0.75,
+                                                  minHeight: 48,
+                                                  fontSize: 12,
+                                                  fontWeight: 700,
+                                                  lineHeight: 1.35,
+                                                  textAlign: "center",
+                                                  overflow: "hidden",
+                                                  display: "-webkit-box",
+                                                  WebkitBoxOrient: "vertical",
+                                                  WebkitLineClamp: 2,
+                                                }}
+                                              >
+                                                {item.name}
+                                              </Typography>
+                                            </>
+                                          )}
+                                        </Box>
+                                      );
+                                    })}
+                                  </Fragment>
+                                ))}
+                              </Box>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </Stack>
 
                   <Box
