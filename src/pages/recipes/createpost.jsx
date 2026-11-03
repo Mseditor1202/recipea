@@ -1,5 +1,5 @@
 import AppLayout from "@/components/layout/AppLayout";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { createRecipe as createRecipeApi } from "@/features/recipes";
 import { useRouter } from "next/router";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -12,15 +12,7 @@ import {
   IconButton,
   Stack,
   Paper,
-  Radio,
-  RadioGroup,
-  FormControl,
-  FormControlLabel,
-  FormLabel,
-  Chip,
-  Divider,
   Alert,
-  Switch,
 } from "@mui/material";
 import {
   AddCircleOutline,
@@ -36,25 +28,13 @@ export default function CreateRecipe() {
   const [recipeName, setRecipeName] = useState("");
   const [registrationMode, setRegistrationMode] = useState(null);
 
-  /* ========= 具材・調味料 ========= */
+  /* ========= 食材 ========= */
   const [ingredients, setIngredients] = useState([{ name: "", quantity: "" }]);
-  const [seasonings, setSeasonings] = useState([{ name: "", quantity: "" }]);
-
-  /* ========= タグ ========= */
-  const [tagInput, setTagInput] = useState("");
-  const [searchTags, setSearchTags] = useState([]);
 
   /* ========= その他 ========= */
   const [imageFile, setImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
-  const [calories, setCalories] = useState("");
-  const [cookingTime, setCookingTime] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
-  const [category, setCategory] = useState("");
-
-  /* ========= 疲労モード ========= */
-  const [isMicrowave, setIsMicrowave] = useState(false);
-  const [isLowDishwashing, setIsLowDishwashing] = useState(false);
 
   /* ========= 画面メッセージ ========= */
   const [errorMsg, setErrorMsg] = useState("");
@@ -95,26 +75,6 @@ export default function CreateRecipe() {
     setter(next);
   };
 
-  /* ========= タグ操作 ========= */
-  const addTag = () => {
-    const tag = tagInput.trim();
-    if (!tag) return;
-    if (searchTags.includes(tag)) return;
-    if (searchTags.length >= 4) return;
-
-    setSearchTags([...searchTags, tag]);
-    setTagInput("");
-  };
-
-  const removeTag = (tag) => {
-    setSearchTags(searchTags.filter((t) => t !== tag));
-  };
-
-  const ingredientCount = useMemo(
-    () => ingredients.filter((i) => i.name.trim()).length,
-    [ingredients],
-  );
-
   if (loading) return <div>Loading...</div>;
   if (!user) return <div>ユーザー情報を取得中...</div>;
 
@@ -136,13 +96,6 @@ export default function CreateRecipe() {
         quantity: (i.quantity || "").trim(),
       }))
       .filter((i) => i.name);
-
-    const validSeasonings = seasonings
-      .map((s) => ({
-        name: (s.name || "").trim(),
-        quantity: (s.quantity || "").trim(),
-      }))
-      .filter((s) => s.name);
 
     if (registrationMode === "external" && !sourceUrl.trim()) {
       setSourceUrlError("元コンテンツURLを入力してください。");
@@ -167,44 +120,37 @@ export default function CreateRecipe() {
 
       const imageUrl = imageFile ? await uploadImage() : "";
 
-      await createRecipeApi({
+      const recipeId = await createRecipeApi({
         recipeName: recipeName.trim(),
 
-        //  具材・調味料
         ingredients: validIngredients,
-        seasonings: validSeasonings,
 
-        //  検索タグ
-        searchTags,
+        // 詳細画面の編集からあとで追加する
+        seasonings: [],
+        searchTags: [],
+        category: null,
+        calories: null,
+        cookingTime: null,
 
-        //  画像・分類
         imageUrl,
-        category: category || null,
 
-        //  数値
-        calories: calories ? Number(calories) : null,
-        cookingTime: cookingTime ? Number(cookingTime) : null,
-
-        // 元コンテンツ
         sourceType: sourceType || "manual",
         sourceUrl: normalizedSourceUrl || null,
 
-        // 既存データ・詳細画面との互換用
         videoUrl:
           sourceType === "youtube" && normalizedSourceUrl
             ? normalizedSourceUrl
             : null,
 
-        //  疲労モード用
         easyFlags: {
-          microwave: !!isMicrowave,
-          lowDishwashing: !!isLowDishwashing,
+          microwave: false,
+          lowDishwashing: false,
         },
 
         userId: user.uid,
       });
 
-      router.push("/recipes");
+      router.push(`/recipes/${recipeId}`);
     } catch (e) {
       console.error(e);
       setErrorMsg(
@@ -426,16 +372,54 @@ export default function CreateRecipe() {
           </Alert>
         )}
 
+        {registrationMode === "external" && (
+          <Box sx={{ mb: 3 }}>
+            <Typography
+              sx={{
+                mb: 1,
+                fontWeight: 800,
+                color: "#333333",
+              }}
+            >
+              元コンテンツのURL *
+            </Typography>
+
+            <TextField
+              fullWidth
+              required
+              value={sourceUrl}
+              onChange={(e) => {
+                setSourceUrl(e.target.value);
+
+                if (sourceUrlError) {
+                  setSourceUrlError("");
+                }
+              }}
+              placeholder="Instagram / YouTube のURLを貼り付け"
+              error={!!sourceUrlError}
+              helperText={
+                sourceUrlError || "Instagram・YouTube・YouTube Shortsに対応"
+              }
+              disabled={saving}
+            />
+          </Box>
+        )}
+
         {/* レシピ名 */}
         <TextField
           fullWidth
-          label="レシピ名"
+          required
+          label="料理名"
           value={recipeName}
           onChange={(e) => setRecipeName(e.target.value)}
           sx={{ mb: 2 }}
         />
 
         {/* 画像 */}
+        <Typography fontWeight={800} mb={1}>
+          料理の画像（任意）
+        </Typography>
+
         <Stack direction="row" spacing={2} alignItems="center" mb={2}>
           <Button
             variant="contained"
@@ -443,7 +427,7 @@ export default function CreateRecipe() {
             startIcon={<CloudUpload />}
             disabled={saving}
           >
-            画像を選択
+            写真を追加する
             <input
               hidden
               type="file"
@@ -451,6 +435,13 @@ export default function CreateRecipe() {
               onChange={handleImageSelect}
             />
           </Button>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: "block", mb: 2 }}
+          >
+            あとから追加もできます
+          </Typography>
           {previewUrl && (
             <img
               src={previewUrl}
@@ -466,17 +457,14 @@ export default function CreateRecipe() {
           )}
         </Stack>
 
-        <Divider sx={{ my: 2 }} />
-
         {/* ✅ 具材 */}
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-        >
-          <Typography fontWeight={900}>🥬 具材（任意）</Typography>
-          <Chip size="small" label={`入力：${ingredientCount}件`} />
-        </Stack>
+        <Box>
+          <Typography fontWeight={800}>食材（任意）</Typography>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            わかる範囲でOK。あとから追加できます
+          </Typography>
+        </Box>
 
         <Box sx={{ mt: 1.2, mb: 2 }}>
           {ingredients.map((row, idx) => (
@@ -539,187 +527,6 @@ export default function CreateRecipe() {
           ))}
         </Box>
 
-        {/* ✅ 調味料（任意） */}
-        <Typography fontWeight={900} mb={1}>
-          🧂 調味料（任意）
-        </Typography>
-
-        <Box sx={{ mb: 2 }}>
-          {seasonings.map((row, idx) => (
-            <Stack
-              key={idx}
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              sx={{ mb: 1 }}
-            >
-              <TextField
-                fullWidth
-                size="small"
-                label="調味料名"
-                placeholder="例：醤油"
-                value={row.name}
-                onChange={(e) =>
-                  updateRow(
-                    setSeasonings,
-                    seasonings,
-                    idx,
-                    "name",
-                    e.target.value,
-                  )
-                }
-                disabled={saving}
-              />
-              <TextField
-                size="small"
-                label="量"
-                placeholder="例：大さじ1"
-                value={row.quantity}
-                onChange={(e) =>
-                  updateRow(
-                    setSeasonings,
-                    seasonings,
-                    idx,
-                    "quantity",
-                    e.target.value,
-                  )
-                }
-                sx={{ width: 160 }}
-                disabled={saving}
-              />
-
-              <IconButton
-                onClick={() => removeRow(setSeasonings, seasonings, idx)}
-                disabled={saving || seasonings.length <= 1}
-              >
-                <RemoveCircleOutline />
-              </IconButton>
-
-              <IconButton
-                onClick={() => addRow(setSeasonings, seasonings)}
-                disabled={saving}
-              >
-                <AddCircleOutline />
-              </IconButton>
-            </Stack>
-          ))}
-        </Box>
-
-        <Divider sx={{ my: 2 }} />
-
-        {/* 🔍 検索タグ */}
-        <Typography fontWeight={900} mb={1}>
-          🔍 検索タグ（最大4つ）
-        </Typography>
-
-        <Stack direction="row" spacing={1} mb={1}>
-          <TextField
-            size="small"
-            placeholder="例：時短 / 玉ねぎ / 節約 / かんたんレシピ"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addTag();
-              }
-            }}
-            sx={{ width: 400 }}
-            disabled={saving}
-          />
-          <Button variant="outlined" onClick={addTag} disabled={saving}>
-            追加
-          </Button>
-        </Stack>
-
-        <Stack direction="row" spacing={1} flexWrap="wrap" mb={2}>
-          {searchTags.map((tag) => (
-            <Chip key={tag} label={`#${tag}`} onDelete={() => removeTag(tag)} />
-          ))}
-        </Stack>
-
-        {/* カテゴリー */}
-        <FormControl sx={{ mb: 2 }}>
-          <FormLabel sx={{ fontWeight: 900 }}>カテゴリー</FormLabel>
-          <RadioGroup
-            row
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            <FormControlLabel value="staple" control={<Radio />} label="主食" />
-            <FormControlLabel value="main" control={<Radio />} label="主菜" />
-            <FormControlLabel value="side" control={<Radio />} label="副菜" />
-            <FormControlLabel value="soup" control={<Radio />} label="汁物" />
-          </RadioGroup>
-        </FormControl>
-
-        {/* ✅ 疲労モード向け */}
-        <Typography fontWeight={900} mb={1}>
-          ⚡ 疲労モード用
-        </Typography>
-        <Stack direction="row" spacing={2} alignItems="center" mb={2}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={isMicrowave}
-                onChange={(e) => setIsMicrowave(e.target.checked)}
-                disabled={saving}
-              />
-            }
-            label="レンチンOK"
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={isLowDishwashing}
-                onChange={(e) => setIsLowDishwashing(e.target.checked)}
-                disabled={saving}
-              />
-            }
-            label="洗い物少"
-          />
-          <Chip size="small" label="※10分は調理時間で判定" variant="outlined" />
-        </Stack>
-
-        {/* 数値・動画 */}
-        <Stack spacing={2} mb={3}>
-          <TextField
-            label="カロリー (kcal)"
-            type="number"
-            value={calories}
-            onChange={(e) => setCalories(e.target.value)}
-            disabled={saving}
-          />
-          <TextField
-            label="調理時間 (分)"
-            type="number"
-            value={cookingTime}
-            onChange={(e) => setCookingTime(e.target.value)}
-            disabled={saving}
-          />
-          {registrationMode === "external" && (
-            <TextField
-              label="元コンテンツURL"
-              required
-              value={sourceUrl}
-              onChange={(e) => {
-                setSourceUrl(e.target.value);
-
-                if (sourceUrlError) {
-                  setSourceUrlError("");
-                }
-              }}
-              placeholder="https://www.instagram.com/reel/..."
-              error={!!sourceUrlError}
-              helperText={
-                sourceUrlError ||
-                "YouTube・YouTube Shorts・Instagramの投稿・リールに対応"
-              }
-              disabled={saving}
-            />
-          )}
-        </Stack>
-
         <Box textAlign="center">
           <Button
             variant="contained"
@@ -727,7 +534,7 @@ export default function CreateRecipe() {
             onClick={createRecipe}
             disabled={saving}
           >
-            {saving ? "保存中…" : "登録する"}
+            {saving ? "保存中…" : "保存する"}
           </Button>
         </Box>
       </Paper>
