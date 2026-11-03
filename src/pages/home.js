@@ -228,20 +228,6 @@ function TodayDetail({
             </Stack>
           )}
         </Box>
-
-        <Button
-          component={NextLink}
-          href="/recipes/weekly"
-          variant="text"
-          sx={{
-            color: "#D98300",
-            fontWeight: 700,
-            fontSize: 13,
-            textTransform: "none",
-          }}
-        >
-          献立カレンダーを見る
-        </Button>
       </Stack>
 
       <Stack spacing={2}>
@@ -1676,6 +1662,98 @@ export default function HomeTodayMenu() {
           onSelectZuboraSet={setSelectedZuboraSet}
           zuboraSets={zuboraSets}
         />
+
+        {/* 週間献立への導線 */}
+        <Box
+          sx={{
+            mt: 3,
+            mb: 2,
+            px: { xs: 1, sm: 1.5 },
+            py: 1.5,
+          }}
+        >
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "stretch", sm: "center" }}
+            justifyContent="space-between"
+            spacing={2}
+          >
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Box
+                sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 3,
+                  bgcolor: "#FFFFFF",
+                  border: "2px solid #FFB830",
+                  display: "grid",
+                  placeItems: "center",
+                  flexShrink: 0,
+                  boxShadow: "0 4px 12px rgba(217, 131, 0, 0.08)",
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/icons/rakusuru/navigation/lg_nav_mealplan.svg"
+                  alt=""
+                  aria-hidden="true"
+                  sx={{
+                    width: 30,
+                    height: 30,
+                    objectFit: "contain",
+                  }}
+                />
+              </Box>
+
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: 17,
+                    fontWeight: 700,
+                    color: "#333333",
+                  }}
+                >
+                  今週の献立を見る・決める
+                </Typography>
+
+                <Typography
+                  sx={{
+                    mt: 0.3,
+                    fontSize: 12,
+                    lineHeight: 1.6,
+                    color: "#777777",
+                  }}
+                >
+                  1週間分の献立をまとめて確認・登録できます
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Button
+              component={NextLink}
+              href="/recipes/weekly"
+              variant="contained"
+              sx={{
+                minHeight: 44,
+                px: 2.5,
+                borderRadius: 999,
+                bgcolor: "#FFB830",
+                color: "#333333",
+                fontWeight: 700,
+                fontSize: 14,
+                textTransform: "none",
+                boxShadow: "none",
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  bgcolor: "#F5A900",
+                  boxShadow: "none",
+                },
+              }}
+            >
+              週間献立へ ›
+            </Button>
+          </Stack>
+        </Box>
 
         {hasEmptySlot && (
           <Card
