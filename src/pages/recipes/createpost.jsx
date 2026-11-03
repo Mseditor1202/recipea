@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { createRecipe as createRecipeApi } from "@/features/recipes";
 import { useRouter } from "next/router";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { parseRecipeSource } from "@/features/recipes/utils/recipeSource";
 import {
   Box,
   Button,
@@ -47,8 +48,8 @@ export default function CreateRecipe() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [calories, setCalories] = useState("");
   const [cookingTime, setCookingTime] = useState("");
-  const [videoUrl, setVideoUrl] = useState("");
-  const [category, setCategory] = useState("main");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [category, setCategory] = useState("");
 
   /* ========= 疲労モード ========= */
   const [isMicrowave, setIsMicrowave] = useState(false);
@@ -56,6 +57,7 @@ export default function CreateRecipe() {
 
   /* ========= 画面メッセージ ========= */
   const [errorMsg, setErrorMsg] = useState("");
+  const [sourceUrlError, setSourceUrlError] = useState("");
   const [saving, setSaving] = useState(false);
 
   /* ========= 共通操作 ========= */
@@ -120,6 +122,7 @@ export default function CreateRecipe() {
     if (!user) return;
 
     setErrorMsg("");
+    setSourceUrlError("");
 
     if (!recipeName.trim()) {
       setErrorMsg("レシピ名を入力してください");
@@ -131,19 +134,25 @@ export default function CreateRecipe() {
         name: (i.name || "").trim(),
         quantity: (i.quantity || "").trim(),
       }))
-      .filter((i) => i.name && i.quantity);
+      .filter((i) => i.name);
 
     const validSeasonings = seasonings
       .map((s) => ({
         name: (s.name || "").trim(),
         quantity: (s.quantity || "").trim(),
       }))
-      .filter((s) => s.name && s.quantity);
+      .filter((s) => s.name);
 
-    if (validIngredients.length === 0) {
-      setErrorMsg("具材を1つ以上入力してください（例：鶏もも 200g）");
+    const parsedSource = parseRecipeSource(sourceUrl);
+
+    if (!parsedSource) {
+      setSourceUrlError(
+        "YouTube・YouTube Shorts・Instagramの投稿またはリールURLを入力してください。埋め込みコード・TikTokには対応していません。",
+      );
       return;
     }
+
+    const { sourceType, sourceUrl: normalizedSourceUrl } = parsedSource;
 
     try {
       setSaving(true);
@@ -162,14 +171,21 @@ export default function CreateRecipe() {
 
         //  画像・分類
         imageUrl,
-        category, // staple/main/side/soup
+        category: category || null,
 
         //  数値
         calories: calories ? Number(calories) : null,
         cookingTime: cookingTime ? Number(cookingTime) : null,
 
-        //  動画
-        videoUrl: videoUrl?.trim() ? videoUrl.trim() : null,
+        // 元コンテンツ
+        sourceType: sourceType || "manual",
+        sourceUrl: normalizedSourceUrl || null,
+
+        // 既存データ・詳細画面との互換用
+        videoUrl:
+          sourceType === "youtube" && normalizedSourceUrl
+            ? normalizedSourceUrl
+            : null,
 
         //  疲労モード用
         easyFlags: {
@@ -252,7 +268,7 @@ export default function CreateRecipe() {
           justifyContent="space-between"
           alignItems="center"
         >
-          <Typography fontWeight={900}>🥬 具材（必須）</Typography>
+          <Typography fontWeight={900}>🥬 具材（任意）</Typography>
           <Chip size="small" label={`入力：${ingredientCount}件`} />
         </Stack>
 
@@ -476,9 +492,20 @@ export default function CreateRecipe() {
             disabled={saving}
           />
           <TextField
-            label="動画URL"
-            value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value)}
+            label="元コンテンツURL（任意）"
+            value={sourceUrl}
+            onChange={(e) => {
+              setSourceUrl(e.target.value);
+              if (sourceUrlError) {
+                setSourceUrlError("");
+              }
+            }}
+            placeholder="https://www.instagram.com/p/..."
+            error={!!sourceUrlError}
+            helperText={
+              sourceUrlError ||
+              "YouTube・YouTube Shorts・Instagramの投稿・リールに対応"
+            }
             disabled={saving}
           />
         </Stack>
