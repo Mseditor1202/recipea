@@ -1326,6 +1326,20 @@ export default function WeeklyZuboraPage() {
                                                     top: 6,
                                                     left: 6,
                                                     fontWeight: 800,
+                                                    bgcolor: isAdd
+                                                      ? undefined
+                                                      : "#FFFFFF",
+                                                    color: isAdd
+                                                      ? undefined
+                                                      : "#555555",
+                                                    border: isAdd
+                                                      ? undefined
+                                                      : "1px solid #E0E0E0",
+                                                    "&:hover": {
+                                                      bgcolor: isAdd
+                                                        ? undefined
+                                                        : "#FFFFFF",
+                                                    },
                                                   }}
                                                 />
                                               </Box>
