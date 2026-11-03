@@ -4,6 +4,8 @@ import { useRouter } from "next/router";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import RecipeImage from "@/components/recipes/RecipeImage";
+import { parseRecipeSource } from "@/features/recipes/utils/recipeSource";
+import { OpenInNew } from "@mui/icons-material";
 
 import {
   Box,
@@ -16,65 +18,28 @@ import {
   Divider,
 } from "@mui/material";
 
-// --- YouTubeの埋め込み用URLを作る関数 ---
-const getEmbedUrl = (url) => {
-  if (!url) return null;
-
-  try {
-    // すでに embed URL の場合はそのまま使う
-    if (url.includes("youtube.com/embed")) return url;
-
-    const u = new URL(url);
-    const hostname = u.hostname;
-    const pathname = u.pathname; // 例: "/watch" or "/shorts/XXX"
-    const params = u.searchParams;
-
-    // youtu.be の短縮URL 例: https://youtu.be/VIDEO_ID
-    if (hostname === "youtu.be") {
-      const videoId = pathname.replace("/", "").split("/")[0];
-      if (videoId) {
-        return `https://www.youtube.com/embed/${videoId}`;
-      }
-    }
-
-    // ショート動画: https://www.youtube.com/shorts/VIDEO_ID
-    if (hostname.includes("youtube.com") && pathname.startsWith("/shorts/")) {
-      const parts = pathname.split("/"); // ["", "shorts", "VIDEO_ID"]
-      const videoId = parts[2];
-      if (videoId) {
-        return `https://www.youtube.com/embed/${videoId}`;
-      }
-    }
-
-    // 通常動画: https://www.youtube.com/watch?v=VIDEO_ID
-    if (hostname.includes("youtube.com") && pathname === "/watch") {
-      const videoId = params.get("v");
-      if (videoId) {
-        return `https://www.youtube.com/embed/${videoId}`;
-      }
-    }
-
-    // ここまで来たら対応外URL
-    return null;
-  } catch (e) {
-    console.error("動画URL解析エラー:", e);
-    return null;
-  }
-};
-
-// 👇 行の見た目（左：名前、右：量）を共通化
 function IngredientRow({ name, quantity }) {
   return (
     <Stack
       direction="row"
       justifyContent="space-between"
+      spacing={2}
       sx={{
-        py: 0.75,
-        borderBottom: "1px solid #eee",
+        py: 1,
+        borderBottom: "1px solid #F0ECE6",
       }}
     >
       <Typography variant="body2">{name}</Typography>
-      <Typography variant="body2">{quantity}</Typography>
+
+      {quantity && (
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ whiteSpace: "nowrap" }}
+        >
+          {quantity}
+        </Typography>
+      )}
     </Stack>
   );
 }
@@ -177,8 +142,31 @@ export default function RecipeDetailPage() {
     return null;
   }
 
-  // 「動画があるかどうか」を判定
-  const embedUrl = getEmbedUrl(recipe.videoUrl);
+  const parsedSource = parseRecipeSource(
+    recipe.sourceUrl || recipe.videoUrl || "",
+  );
+
+  const sourceType = recipe.sourceType || parsedSource?.sourceType || "manual";
+
+  const sourceUrl =
+    recipe.sourceUrl ||
+    parsedSource?.sourceUrl ||
+    (sourceType === "youtube" ? recipe.videoUrl : null);
+
+  const sourceMeta = {
+    youtube: {
+      badge: "YouTubeから登録",
+      name: "YouTube",
+      buttonLabel: "YouTubeで見る",
+    },
+    instagram: {
+      badge: "Instagramから登録",
+      name: "Instagram",
+      buttonLabel: "Instagramで見る",
+    },
+  };
+
+  const externalSource = sourceMeta[sourceType] ?? null;
 
   const isMine = recipe.userId && recipe.userId === auth.currentUser?.uid;
 
@@ -199,43 +187,38 @@ export default function RecipeDetailPage() {
         </Button>
 
         <Card>
-          {/* ▼ 動画があれば動画を最上部に、なければアイキャッチ画像 */}
-          {embedUrl ? (
-            <Box
-              sx={{
-                position: "relative",
-                pt: "56.25%", // 16:9
-                backgroundColor: "#000",
-              }}
-            >
-              <Box
-                component="iframe"
-                src={embedUrl}
-                sx={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  border: 0,
-                }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </Box>
-          ) : (
-            <RecipeImage
-              imageUrl={recipe.imageUrl}
-              title={recipe.recipeName}
-              height={260}
-            />
-          )}
+          <RecipeImage
+            imageUrl={recipe.imageUrl}
+            title={recipe.recipeName}
+            height={300}
+          />
 
           <CardContent>
             {/* タイトル */}
-            <Typography variant="h4" gutterBottom>
+            <Typography
+              variant="h4"
+              sx={{
+                fontSize: { xs: 24, sm: 28 },
+                fontWeight: 800,
+                color: "#333333",
+                mb: 1,
+              }}
+            >
               {recipe.recipeName || "タイトル未設定"}
             </Typography>
+
+            {externalSource && (
+              <Chip
+                size="small"
+                label={externalSource.badge}
+                sx={{
+                  mb: 2,
+                  bgcolor: "#FFF3E0",
+                  color: "#D97706",
+                  fontWeight: 700,
+                }}
+              />
+            )}
 
             {/* カロリー & 調理時間 & カテゴリー */}
             <Stack direction="row" spacing={1} mb={2}>
@@ -318,6 +301,82 @@ export default function RecipeDetailPage() {
                 </Typography>
               )}
             </Box>
+
+            {externalSource && sourceUrl && (
+              <>
+                <Divider sx={{ my: 3 }} />
+
+                <Box>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      mb: 1.5,
+                      fontWeight: 800,
+                      color: "#333333",
+                    }}
+                  >
+                    元コンテンツ
+                  </Typography>
+
+                  <Box
+                    sx={{
+                      p: 2,
+                      borderRadius: 3,
+                      bgcolor: "#FFF8EE",
+                      border: "1px solid #F4D7AA",
+                    }}
+                  >
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      alignItems={{ xs: "stretch", sm: "center" }}
+                      justifyContent="space-between"
+                      spacing={2}
+                    >
+                      <Box>
+                        <Typography
+                          sx={{
+                            fontWeight: 700,
+                            color: "#333333",
+                          }}
+                        >
+                          {externalSource.name}
+                        </Typography>
+
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ mt: 0.5 }}
+                        >
+                          作り方などは元コンテンツで確認できます
+                        </Typography>
+                      </Box>
+
+                      <Button
+                        component="a"
+                        href={sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        variant="outlined"
+                        endIcon={<OpenInNew />}
+                        sx={{
+                          borderRadius: 999,
+                          borderColor: "#FFB830",
+                          color: "#9A6700",
+                          fontWeight: 700,
+                          whiteSpace: "nowrap",
+                          "&:hover": {
+                            borderColor: "#F5A900",
+                            bgcolor: "#FFF3E0",
+                          },
+                        }}
+                      >
+                        {externalSource.buttonLabel}
+                      </Button>
+                    </Stack>
+                  </Box>
+                </Box>
+              </>
+            )}
 
             {/* 作成日時（あれば） */}
             {recipe.createdAt && (
