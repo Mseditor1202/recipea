@@ -34,6 +34,7 @@ export default function CreateRecipe() {
   const router = useRouter();
   const { user, loading } = useRequireAuth();
   const [recipeName, setRecipeName] = useState("");
+  const [registrationMode, setRegistrationMode] = useState(null);
 
   /* ========= 具材・調味料 ========= */
   const [ingredients, setIngredients] = useState([{ name: "", quantity: "" }]);
@@ -143,7 +144,14 @@ export default function CreateRecipe() {
       }))
       .filter((s) => s.name);
 
-    const parsedSource = parseRecipeSource(sourceUrl);
+    if (registrationMode === "external" && !sourceUrl.trim()) {
+      setSourceUrlError("元コンテンツURLを入力してください。");
+      return;
+    }
+
+    const parsedSource = parseRecipeSource(
+      registrationMode === "external" ? sourceUrl : "",
+    );
 
     if (!parsedSource) {
       setSourceUrlError(
@@ -207,11 +215,209 @@ export default function CreateRecipe() {
     }
   };
 
+  if (registrationMode === null) {
+    return (
+      <AppLayout title="レシピ登録" activeNav="create">
+        <Paper
+          elevation={0}
+          sx={{
+            maxWidth: 560,
+            mx: "auto",
+            mt: { xs: 2, sm: 5 },
+            p: { xs: 2.5, sm: 4 },
+            borderRadius: 3,
+            border: "1px solid #EEE8DF",
+            bgcolor: "#FFFFFF",
+          }}
+        >
+          <Box sx={{ textAlign: "center", mb: 4 }}>
+            <Typography
+              component="h1"
+              sx={{
+                fontSize: 22,
+                fontWeight: 800,
+                color: "#333333",
+              }}
+            >
+              どの方法で登録しますか？
+            </Typography>
+
+            <Typography
+              variant="body2"
+              sx={{
+                mt: 1,
+                color: "#777777",
+              }}
+            >
+              あとからいつでも情報を追加できます
+            </Typography>
+          </Box>
+
+          <Stack spacing={2}>
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={() => setRegistrationMode("manual")}
+              sx={{
+                justifyContent: "space-between",
+                textAlign: "left",
+                minHeight: 110,
+                px: 2.5,
+                py: 2,
+                borderRadius: 3,
+                borderColor: "#BFD9C2",
+                color: "#333333",
+                textTransform: "none",
+                "&:hover": {
+                  borderColor: "#4CAF6A",
+                  bgcolor: "#F6FBF6",
+                },
+              }}
+            >
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: 17,
+                    fontWeight: 800,
+                    color: "#247531",
+                  }}
+                >
+                  自分で登録する
+                </Typography>
+
+                <Typography
+                  variant="body2"
+                  sx={{
+                    mt: 0.75,
+                    color: "#666666",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  料理名と食材などを入力して
+                  <br />
+                  オリジナルのレシピを作ります
+                </Typography>
+              </Box>
+
+              <Typography sx={{ fontSize: 24 }}>›</Typography>
+            </Button>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={() => setRegistrationMode("external")}
+              sx={{
+                justifyContent: "space-between",
+                textAlign: "left",
+                minHeight: 110,
+                px: 2.5,
+                py: 2,
+                borderRadius: 3,
+                borderColor: "#F3C4A5",
+                color: "#333333",
+                textTransform: "none",
+                "&:hover": {
+                  borderColor: "#FF7A3D",
+                  bgcolor: "#FFF9F5",
+                },
+              }}
+            >
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: 17,
+                    fontWeight: 800,
+                    color: "#E86224",
+                  }}
+                >
+                  SNS・Webから登録する
+                </Typography>
+
+                <Typography
+                  variant="body2"
+                  sx={{
+                    mt: 0.75,
+                    color: "#666666",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  InstagramやYouTubeなどのURLから
+                  <br />
+                  レシピ情報を取り込みます
+                </Typography>
+              </Box>
+
+              <Typography sx={{ fontSize: 24 }}>›</Typography>
+            </Button>
+          </Stack>
+
+          <Box
+            sx={{
+              mt: 3,
+              p: 2,
+              borderRadius: 3,
+              bgcolor: "#FFFDF3",
+              border: "1px solid #F2ECD1",
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: 14,
+                fontWeight: 800,
+                color: "#386B35",
+              }}
+            >
+              まずは最小限だけでOK！
+            </Typography>
+
+            <Typography
+              variant="body2"
+              sx={{
+                mt: 1,
+                color: "#555555",
+                lineHeight: 1.8,
+              }}
+            >
+              ✓ 料理名だけでも保存できます
+              <br />
+              ✓ 食材・写真・タグなどはあとから追加できます
+              <br />✓ 保存したレシピは献立にも使えます
+            </Typography>
+          </Box>
+        </Paper>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout title="レシピ作成" activeNav="create">
       <Paper sx={{ maxWidth: 720, mx: "auto", mt: 5, p: { xs: 2, sm: 4 } }}>
+        <Button
+          size="small"
+          onClick={() => {
+            setRegistrationMode(null);
+            setSourceUrlError("");
+          }}
+          disabled={saving}
+          sx={{
+            mb: 2,
+            px: 0,
+            minWidth: 0,
+            color: "#666666",
+            fontWeight: 700,
+            "&:hover": {
+              bgcolor: "transparent",
+              color: "#333333",
+            },
+          }}
+        >
+          ← 登録方法を選び直す
+        </Button>
+
         <Typography variant="h5" fontWeight={800} mb={2}>
-          🍳 レシピを登録
+          {registrationMode === "manual"
+            ? "自分で登録する"
+            : "SNS・Webから登録する"}
         </Typography>
 
         {errorMsg && (
@@ -491,23 +697,27 @@ export default function CreateRecipe() {
             onChange={(e) => setCookingTime(e.target.value)}
             disabled={saving}
           />
-          <TextField
-            label="元コンテンツURL（任意）"
-            value={sourceUrl}
-            onChange={(e) => {
-              setSourceUrl(e.target.value);
-              if (sourceUrlError) {
-                setSourceUrlError("");
+          {registrationMode === "external" && (
+            <TextField
+              label="元コンテンツURL"
+              required
+              value={sourceUrl}
+              onChange={(e) => {
+                setSourceUrl(e.target.value);
+
+                if (sourceUrlError) {
+                  setSourceUrlError("");
+                }
+              }}
+              placeholder="https://www.instagram.com/reel/..."
+              error={!!sourceUrlError}
+              helperText={
+                sourceUrlError ||
+                "YouTube・YouTube Shorts・Instagramの投稿・リールに対応"
               }
-            }}
-            placeholder="https://www.instagram.com/p/..."
-            error={!!sourceUrlError}
-            helperText={
-              sourceUrlError ||
-              "YouTube・YouTube Shorts・Instagramの投稿・リールに対応"
-            }
-            disabled={saving}
-          />
+              disabled={saving}
+            />
+          )}
         </Stack>
 
         <Box textAlign="center">
