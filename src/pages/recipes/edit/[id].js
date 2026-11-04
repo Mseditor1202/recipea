@@ -20,7 +20,7 @@ import {
   Chip,
   Divider,
   Alert,
-  Switch,
+  Collapse,
 } from "@mui/material";
 import {
   AddCircleOutline,
@@ -59,10 +59,10 @@ export default function EditRecipe() {
   const [cookingTime, setCookingTime] = useState("");
   const [category, setCategory] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [memo, setMemo] = useState("");
 
-  // ✅ 疲労モード用（Createと揃える）
-  const [isMicrowave, setIsMicrowave] = useState(false);
-  const [isLowDishwashing, setIsLowDishwashing] = useState(false);
+  // どのカードを開いているか
+  const [editingSection, setEditingSection] = useState(null);
 
   // タグ
   const [searchTags, setSearchTags] = useState([]);
@@ -142,6 +142,7 @@ export default function EditRecipe() {
 
         setCategory(data.category || "");
         setSourceUrl(data.sourceUrl || data.videoUrl || "");
+        setMemo(data.memo || "");
 
         // ✅ タグ
         setSearchTags(
@@ -152,11 +153,6 @@ export default function EditRecipe() {
                 .slice(0, MAX_TAGS)
             : [],
         );
-
-        // ✅ 疲労モードフラグ（古いデータは無いのでフォールバック）
-        const ef = data.easyFlags || {};
-        setIsMicrowave(!!ef.microwave);
-        setIsLowDishwashing(!!ef.lowDishwashing);
       } catch (err) {
         console.error("レシピ取得エラー:", err);
         alert("レシピの取得中にエラーが発生しました");
@@ -302,6 +298,7 @@ export default function EditRecipe() {
         category: category || null,
         sourceType: sourceType || "manual",
         sourceUrl: normalizedSourceUrl || null,
+        memo: memo.trim() || null,
 
         // 既存のYouTube詳細表示との互換用
         videoUrl:
@@ -311,12 +308,6 @@ export default function EditRecipe() {
 
         // ✅ タグ
         searchTags: searchTags.slice(0, MAX_TAGS),
-
-        // ✅ 疲労モード用
-        easyFlags: {
-          microwave: !!isMicrowave,
-          lowDishwashing: !!isLowDishwashing,
-        },
 
         updatedAt: serverTimestamp(),
       });
@@ -563,38 +554,111 @@ export default function EditRecipe() {
           調味料を追加
         </Button>
 
-        {/* 疲労モード用 */}
-        <Divider sx={{ my: 2 }} />
-        <Typography variant="h6" mb={1} fontWeight={900}>
-          ⚡ 疲労モード用（任意）
-        </Typography>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{ mb: 2 }}
+        <Box
+          sx={{
+            mb: 2,
+            border: "1px solid #E7E1D8",
+            borderRadius: 3,
+            bgcolor: "#FFFFFF",
+            overflow: "hidden",
+          }}
         >
-          <FormControlLabel
-            control={
-              <Switch
-                checked={isMicrowave}
-                onChange={(e) => setIsMicrowave(e.target.checked)}
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            sx={{ p: 2 }}
+          >
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: "#333333",
+                }}
+              >
+                コメント
+              </Typography>
+
+              <Typography
+                variant="body2"
+                sx={{
+                  mt: 0.5,
+                  color: "#777777",
+                }}
+              >
+                作った感想や家族の反応を残せます
+              </Typography>
+
+              {!memo.trim() && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    display: "block",
+                    mt: 0.75,
+                    color: "#FF8A00",
+                    fontWeight: 700,
+                  }}
+                >
+                  未登録
+                </Typography>
+              )}
+            </Box>
+
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() =>
+                setEditingSection((current) =>
+                  current === "memo" ? null : "memo",
+                )
+              }
+              disabled={saving}
+              sx={{
+                borderRadius: 999,
+                fontWeight: 700,
+              }}
+            >
+              {memo.trim() ? "編集" : "＋ 追加"}
+            </Button>
+          </Stack>
+
+          <Collapse in={editingSection === "memo"}>
+            <Box
+              sx={{
+                px: 2,
+                pb: 2,
+              }}
+            >
+              <TextField
+                fullWidth
+                multiline
+                minRows={3}
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                placeholder="例：きのこの香りがよくて、家族にも好評！"
+                inputProps={{ maxLength: 200 }}
+                helperText={`${memo.length} / 200`}
                 disabled={saving}
               />
-            }
-            label="レンチンOK"
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={isLowDishwashing}
-                onChange={(e) => setIsLowDishwashing(e.target.checked)}
-                disabled={saving}
-              />
-            }
-            label="洗い物少"
-          />
-          <Chip size="small" label="※10分は調理時間で判定" variant="outlined" />
-        </Stack>
+
+              <Stack
+                direction="row"
+                justifyContent="flex-end"
+                spacing={1}
+                sx={{ mt: 1.5 }}
+              >
+                <Button
+                  size="small"
+                  onClick={() => setEditingSection(null)}
+                  disabled={saving}
+                >
+                  閉じる
+                </Button>
+              </Stack>
+            </Box>
+          </Collapse>
+        </Box>
 
         {/* レシピ情報 */}
         <Divider sx={{ my: 2 }} />
