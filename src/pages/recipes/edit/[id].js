@@ -230,8 +230,23 @@ export default function EditRecipe() {
   const handleImageSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (previewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
     setImageFile(file);
     setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleRemoveImage = () => {
+    if (previewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    setImageFile(null);
+    setPreviewUrl("");
+    setCurrentImageUrl("");
   };
 
   const uploadImage = async () => {
@@ -370,21 +385,35 @@ export default function EditRecipe() {
         />
 
         {/* 画像 */}
-        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-          <Button
-            variant="contained"
-            component="label"
-            startIcon={<CloudUpload />}
-            disabled={saving}
-          >
-            画像を変更
-            <input
-              type="file"
-              hidden
-              accept="image/*"
-              onChange={handleImageSelect}
-            />
-          </Button>
+        <Stack spacing={1.5} sx={{ mb: 2 }}>
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Button
+              variant="contained"
+              component="label"
+              startIcon={<CloudUpload />}
+              disabled={saving}
+            >
+              {previewUrl ? "画像を変更" : "画像を追加"}
+
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={handleImageSelect}
+              />
+            </Button>
+
+            {previewUrl && (
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={handleRemoveImage}
+                disabled={saving}
+              >
+                画像を削除
+              </Button>
+            )}
+          </Stack>
 
           {previewUrl && (
             <img
