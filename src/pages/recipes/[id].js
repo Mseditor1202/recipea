@@ -4,6 +4,16 @@ import { useRouter } from "next/router";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import RecipeImage from "@/components/recipes/RecipeImage";
+import { parseRecipeSource } from "@/features/recipes/utils/recipeSource";
+import {
+  Instagram,
+  YouTube,
+  OpenInNew,
+  AccessTime,
+  PeopleOutline,
+} from "@mui/icons-material";
+import Script from "next/script";
+import Image from "next/image";
 
 import {
   Box,
@@ -16,65 +26,87 @@ import {
   Divider,
 } from "@mui/material";
 
-// --- YouTubeの埋め込み用URLを作る関数 ---
-const getEmbedUrl = (url) => {
+const getYouTubeEmbedUrl = (url) => {
   if (!url) return null;
 
   try {
-    // すでに embed URL の場合はそのまま使う
-    if (url.includes("youtube.com/embed")) return url;
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    const pathname = parsed.pathname;
 
-    const u = new URL(url);
-    const hostname = u.hostname;
-    const pathname = u.pathname; // 例: "/watch" or "/shorts/XXX"
-    const params = u.searchParams;
-
-    // youtu.be の短縮URL 例: https://youtu.be/VIDEO_ID
     if (hostname === "youtu.be") {
-      const videoId = pathname.replace("/", "").split("/")[0];
-      if (videoId) {
-        return `https://www.youtube.com/embed/${videoId}`;
-      }
+      const videoId = pathname.split("/").filter(Boolean)[0];
+
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
     }
 
-    // ショート動画: https://www.youtube.com/shorts/VIDEO_ID
-    if (hostname.includes("youtube.com") && pathname.startsWith("/shorts/")) {
-      const parts = pathname.split("/"); // ["", "shorts", "VIDEO_ID"]
-      const videoId = parts[2];
-      if (videoId) {
-        return `https://www.youtube.com/embed/${videoId}`;
-      }
+    const isYouTube =
+      hostname === "youtube.com" || hostname.endsWith(".youtube.com");
+
+    if (!isYouTube) return null;
+
+    if (pathname === "/watch") {
+      const videoId = parsed.searchParams.get("v");
+
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
     }
 
-    // 通常動画: https://www.youtube.com/watch?v=VIDEO_ID
-    if (hostname.includes("youtube.com") && pathname === "/watch") {
-      const videoId = params.get("v");
-      if (videoId) {
-        return `https://www.youtube.com/embed/${videoId}`;
-      }
+    if (pathname.startsWith("/shorts/")) {
+      const videoId = pathname.split("/").filter(Boolean)[1];
+
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
     }
 
-    // ここまで来たら対応外URL
+    if (pathname.startsWith("/embed/")) {
+      const videoId = pathname.split("/").filter(Boolean)[1];
+
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+    }
+
     return null;
-  } catch (e) {
-    console.error("動画URL解析エラー:", e);
+  } catch {
     return null;
   }
 };
 
-// 👇 行の見た目（左：名前、右：量）を共通化
+const isInstagramReelUrl = (url) => {
+  if (!url) return false;
+
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+
+    const isInstagram =
+      hostname === "instagram.com" || hostname.endsWith(".instagram.com");
+
+    return isInstagram && parsed.pathname.startsWith("/reel/");
+  } catch {
+    return false;
+  }
+};
+
 function IngredientRow({ name, quantity }) {
   return (
     <Stack
       direction="row"
       justifyContent="space-between"
+      spacing={2}
       sx={{
-        py: 0.75,
-        borderBottom: "1px solid #eee",
+        py: 1,
+        borderBottom: "1px solid #F0ECE6",
       }}
     >
       <Typography variant="body2">{name}</Typography>
-      <Typography variant="body2">{quantity}</Typography>
+
+      {quantity && (
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ whiteSpace: "nowrap" }}
+        >
+          {quantity}
+        </Typography>
+      )}
     </Stack>
   );
 }
@@ -177,8 +209,45 @@ export default function RecipeDetailPage() {
     return null;
   }
 
-  // 「動画があるかどうか」を判定
-  const embedUrl = getEmbedUrl(recipe.videoUrl);
+  const parsedSource = parseRecipeSource(
+    recipe.sourceUrl || recipe.videoUrl || "",
+  );
+
+  const sourceType = recipe.sourceType || parsedSource?.sourceType || "manual";
+
+  const sourceUrl =
+    recipe.sourceUrl ||
+    parsedSource?.sourceUrl ||
+    (sourceType === "youtube" ? recipe.videoUrl : null);
+
+  const youtubeEmbedUrl =
+    sourceType === "youtube"
+      ? getYouTubeEmbedUrl(sourceUrl || recipe.videoUrl)
+      : null;
+
+  const isInstagramReel =
+    sourceType === "instagram" && isInstagramReelUrl(sourceUrl);
+
+  const displayTags = Array.isArray(recipe.searchTags)
+    ? recipe.searchTags
+    : Array.isArray(recipe.tags)
+      ? recipe.tags
+      : [];
+
+  const sourceMeta = {
+    youtube: {
+      badge: "YouTubeから登録",
+      name: "YouTube",
+      buttonLabel: "YouTubeで見る",
+    },
+    instagram: {
+      badge: "Instagramから登録",
+      name: "Instagram",
+      buttonLabel: "Instagramで見る",
+    },
+  };
+
+  const externalSource = sourceMeta[sourceType] ?? null;
 
   const isMine = recipe.userId && recipe.userId === auth.currentUser?.uid;
 
@@ -193,175 +262,607 @@ export default function RecipeDetailPage() {
 
   return (
     <AppLayout title="レシピ詳細" activeNav="recipes">
-      <Box sx={{ maxWidth: 800, mx: "auto", mt: 4, px: 2 }}>
-        <Button onClick={() => router.push(backHref)} sx={{ mb: 2 }}>
+      <Box
+        sx={{
+          maxWidth: 560,
+          mx: "auto",
+          mt: { xs: 2, sm: 4 },
+          px: { xs: 2, sm: 3 },
+          pb: 5,
+        }}
+      >
+        {/* 戻る */}
+        <Button
+          onClick={() => router.push(backHref)}
+          sx={{
+            mb: 2,
+            px: 0,
+            minWidth: 0,
+            color: "#666666",
+            fontWeight: 700,
+            "&:hover": {
+              bgcolor: "transparent",
+              color: "#333333",
+            },
+          }}
+        >
           ← {backLabel}
         </Button>
 
-        <Card>
-          {/* ▼ 動画があれば動画を最上部に、なければアイキャッチ画像 */}
-          {embedUrl ? (
+        <Card
+          elevation={0}
+          sx={{
+            overflow: "hidden",
+            borderRadius: 3,
+            border: "1px solid #EEE8DF",
+            bgcolor: "#FFFFFF",
+            boxShadow: "0 4px 16px rgba(80, 60, 30, 0.06)",
+          }}
+        >
+          {/* メインメディア */}
+          {youtubeEmbedUrl ? (
             <Box
               sx={{
-                position: "relative",
-                pt: "56.25%", // 16:9
-                backgroundColor: "#000",
+                width: "100%",
+                bgcolor: "#000000",
               }}
             >
               <Box
-                component="iframe"
-                src={embedUrl}
                 sx={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  border: 0,
+                  position: "relative",
+                  pt: "56.25%",
                 }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
+              >
+                <Box
+                  component="iframe"
+                  src={youtubeEmbedUrl}
+                  title={`${recipe.recipeName || "レシピ"}の動画`}
+                  sx={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    border: 0,
+                  }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </Box>
+            </Box>
+          ) : isInstagramReel && sourceUrl ? (
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                bgcolor: "#FFFFFF",
+                overflow: "hidden",
+              }}
+            >
+              <Script
+                src="https://www.instagram.com/embed.js"
+                strategy="afterInteractive"
+                onReady={() => {
+                  window.instgrm?.Embeds?.process?.();
+                }}
               />
+
+              <Box
+                component="blockquote"
+                className="instagram-media"
+                data-instgrm-permalink={sourceUrl}
+                data-instgrm-version="14"
+                sx={{
+                  width: "100%",
+                  maxWidth: 540,
+                  minWidth: 0,
+                  m: "0 auto !important",
+                  border: "0 !important",
+                }}
+              >
+                <Box
+                  component="a"
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Instagramで見る
+                </Box>
+              </Box>
             </Box>
           ) : (
             <RecipeImage
               imageUrl={recipe.imageUrl}
               title={recipe.recipeName}
-              height={260}
+              height={280}
             />
           )}
 
-          <CardContent>
+          <CardContent
+            sx={{
+              p: { xs: 2.5, sm: 4 },
+              "&:last-child": {
+                pb: { xs: 2.5, sm: 4 },
+              },
+            }}
+          >
             {/* タイトル */}
-            <Typography variant="h4" gutterBottom>
+            <Typography
+              component="h1"
+              sx={{
+                fontSize: { xs: 20, sm: 22 },
+                lineHeight: 1.5,
+                fontWeight: 800,
+                color: "#333333",
+              }}
+            >
               {recipe.recipeName || "タイトル未設定"}
             </Typography>
 
-            {/* カロリー & 調理時間 & カテゴリー */}
-            <Stack direction="row" spacing={1} mb={2}>
-              {recipe.cookingTime != null && (
-                <Chip
-                  label={`🕒 調理時間: ${recipe.cookingTime} 分`}
-                  size="small"
-                />
-              )}
-              {recipe.calories != null && (
-                <Chip
-                  label={`🔥 カロリー: ${recipe.calories} kcal`}
-                  size="small"
-                />
-              )}
-              {recipe.category && (
-                <Chip
-                  label={`📂 ${categoryLabels[recipe.category] || "未分類"}`}
-                  size="small"
-                  sx={{ mb: 1 }}
-                />
-              )}
-            </Stack>
-
-            <Divider sx={{ my: 2 }} />
-
-            {/* 材料ブロック（具材 / 調味料） */}
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="h6" gutterBottom>
-                {servings ? `材料（${servings}人分）` : "材料"}
-              </Typography>
-
-              {/* オレンジっぽいライン風（色はお好みで） */}
-              <Divider sx={{ mb: 1, borderBottomWidth: 2 }} />
-
-              {/* 具材 */}
-              <Typography
-                variant="subtitle2"
-                sx={{ mt: 1.5, mb: 0.5, fontWeight: "bold" }}
+            {/* 登録元 */}
+            {externalSource && sourceUrl && (
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                spacing={2}
+                sx={{
+                  mt: 1.5,
+                  mb: 2,
+                }}
               >
-                ■ 具材
-              </Typography>
-              {ingredients.length > 0 ? (
-                <Box sx={{ mb: 2 }}>
-                  {ingredients.map((ing, index) => (
-                    <IngredientRow
-                      key={`ing-${index}`}
-                      name={ing.name}
-                      quantity={ing.quantity}
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  {sourceType === "instagram" && (
+                    <Instagram
+                      sx={{
+                        fontSize: 22,
+                        color: "#E4405F",
+                      }}
                     />
-                  ))}
+                  )}
+
+                  {sourceType === "youtube" && (
+                    <YouTube
+                      sx={{
+                        fontSize: 24,
+                        color: "#FF0000",
+                      }}
+                    />
+                  )}
+
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 700,
+                      color: "#555555",
+                    }}
+                  >
+                    {externalSource.name}
+                  </Typography>
+                </Stack>
+
+                <Button
+                  component="a"
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="small"
+                  endIcon={<OpenInNew />}
+                  sx={{
+                    p: 0,
+                    minWidth: 0,
+                    color: "#1976D2",
+                    fontWeight: 700,
+                    "&:hover": {
+                      bgcolor: "transparent",
+                      textDecoration: "underline",
+                    },
+                  }}
+                >
+                  元コンテンツを見る
+                </Button>
+              </Stack>
+            )}
+
+            {/* 基本情報 */}
+            {(recipe.cookingTime != null || servings || recipe.category) && (
+              <Stack
+                direction="row"
+                divider={<Divider orientation="vertical" flexItem />}
+                sx={{
+                  mt: 1,
+                  mb: 2.5,
+                  py: 1.5,
+                  borderTop: "1px solid #F0ECE6",
+                  borderBottom: "1px solid #F0ECE6",
+                }}
+              >
+                {recipe.cookingTime != null && (
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    justifyContent="center"
+                    sx={{ flex: 1 }}
+                  >
+                    <AccessTime
+                      sx={{
+                        fontSize: 25,
+                        color: "#5A3324",
+                      }}
+                    />
+
+                    <Box>
+                      <Typography
+                        sx={{
+                          fontSize: 14,
+                          fontWeight: 800,
+                        }}
+                      >
+                        {recipe.cookingTime}分
+                      </Typography>
+
+                      <Typography variant="caption" color="text.secondary">
+                        調理時間
+                      </Typography>
+                    </Box>
+                  </Stack>
+                )}
+
+                {servings && (
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    justifyContent="center"
+                    sx={{ flex: 1 }}
+                  >
+                    <PeopleOutline
+                      sx={{
+                        fontSize: 27,
+                        color: "#6B7A2D",
+                      }}
+                    />
+
+                    <Box>
+                      <Typography
+                        sx={{
+                          fontSize: 14,
+                          fontWeight: 800,
+                        }}
+                      >
+                        {servings}人分
+                      </Typography>
+
+                      <Typography variant="caption" color="text.secondary">
+                        分量
+                      </Typography>
+                    </Box>
+                  </Stack>
+                )}
+
+                {recipe.category && (
+                  <Box
+                    sx={{
+                      flex: 1,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: 14,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {categoryLabels[recipe.category] || "未分類"}
+                    </Typography>
+
+                    <Typography variant="caption" color="text.secondary">
+                      カテゴリ
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+            )}
+
+            {displayTags.length > 0 && (
+              <Stack
+                direction="row"
+                spacing={1}
+                useFlexGap
+                flexWrap="wrap"
+                sx={{ mb: 3 }}
+              >
+                {displayTags.map((tag) => (
+                  <Chip
+                    key={tag}
+                    label={tag}
+                    size="small"
+                    sx={{
+                      bgcolor: "#FFF3E0",
+                      color: "#75511B",
+                      border: "1px solid #F4D6A0",
+                      fontWeight: 700,
+                    }}
+                  />
+                ))}
+              </Stack>
+            )}
+
+            {/* メモ */}
+            <Divider sx={{ my: 2.5 }} />
+
+            <Box>
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1 }}
+              >
+                <Stack direction="row" alignItems="center" spacing={0.75}>
+                  <Image
+                    src="/icons/rakusuru/action/lg_other_memo.png"
+                    alt=""
+                    width={24}
+                    height={24}
+                  />
+
+                  <Typography
+                    sx={{
+                      fontSize: 16,
+                      fontWeight: 800,
+                      color: "#333333",
+                    }}
+                  >
+                    メモ
+                  </Typography>
+                </Stack>
+
+                {isMine && (
+                  <Button
+                    size="small"
+                    onClick={() => router.push(`/recipes/edit/${recipe.id}`)}
+                    startIcon={
+                      <Image
+                        src="/icons/rakusuru/action/lg_action_edit.png"
+                        alt=""
+                        width={20}
+                        height={20}
+                      />
+                    }
+                    sx={{
+                      minWidth: 0,
+                      color: "#2E7D32",
+                      fontWeight: 700,
+                      px: 1,
+                      "& .MuiButton-startIcon": {
+                        mr: 0.5,
+                      },
+                    }}
+                  >
+                    編集
+                  </Button>
+                )}
+              </Stack>
+
+              <Box
+                sx={{
+                  p: 1.5,
+                  border: "1px solid #E7E1D8",
+                  borderRadius: 2,
+                  bgcolor: "#FFFFFF",
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    lineHeight: 1.7,
+                    whiteSpace: "pre-wrap",
+                    color: recipe.memo ? "#444444" : "#999999",
+                  }}
+                >
+                  {recipe.memo || "メモはまだありません"}
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* 食材 */}
+            <Divider sx={{ my: 3 }} />
+
+            <Box>
+              <Typography
+                variant="h6"
+                sx={{
+                  mb: 1.5,
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: "#333333",
+                }}
+              >
+                食材
+              </Typography>
+
+              {ingredients.length > 0 || seasonings.length > 0 ? (
+                <Box
+                  sx={{
+                    border: "1px solid #F0ECE6",
+                    borderRadius: 3,
+                    px: 2,
+                    bgcolor: "#FFFDFA",
+                  }}
+                >
+                  {ingredients.length > 0 && (
+                    <Box>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          display: "block",
+                          pt: 1.5,
+                          pb: 0.5,
+                          color: "#888888",
+                          fontWeight: 700,
+                        }}
+                      >
+                        具材
+                      </Typography>
+
+                      {ingredients.map((ingredient, index) => (
+                        <IngredientRow
+                          key={`ing-${index}`}
+                          name={ingredient.name}
+                          quantity={ingredient.quantity}
+                        />
+                      ))}
+                    </Box>
+                  )}
+
+                  {seasonings.length > 0 && (
+                    <Box sx={{ pb: 1 }}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          display: "block",
+                          pt: 1.5,
+                          pb: 0.5,
+                          color: "#888888",
+                          fontWeight: 700,
+                        }}
+                      >
+                        調味料
+                      </Typography>
+
+                      {seasonings.map((seasoning, index) => (
+                        <IngredientRow
+                          key={`sea-${index}`}
+                          name={seasoning.name}
+                          quantity={seasoning.quantity}
+                        />
+                      ))}
+                    </Box>
+                  )}
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">
-                  なし
-                </Typography>
-              )}
-
-              {/* 調味料 */}
-              <Typography
-                variant="subtitle2"
-                sx={{ mt: 2, mb: 0.5, fontWeight: "bold" }}
-              >
-                ■ 調味料
-              </Typography>
-              {seasonings.length > 0 ? (
-                <Box sx={{ mb: 2 }}>
-                  {seasonings.map((s, index) => (
-                    <IngredientRow
-                      key={`sea-${index}`}
-                      name={s.name}
-                      quantity={s.quantity}
-                    />
-                  ))}
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    bgcolor: "#F8F8F8",
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    食材はまだ登録されていません
+                  </Typography>
                 </Box>
-              ) : (
-                // 🔽 フィールドが無い or 配列が空のときは「なし」
-                <Typography variant="body2" color="text.secondary">
-                  なし
-                </Typography>
               )}
             </Box>
 
-            {/* 作成日時（あれば） */}
+            {/* 元コンテンツ */}
+            {externalSource && sourceUrl && (
+              <Box sx={{ mt: 3 }}>
+                <Button
+                  fullWidth
+                  component="a"
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="contained"
+                  endIcon={<OpenInNew />}
+                  sx={{
+                    minHeight: 58,
+                    borderRadius: 999,
+                    bgcolor: "#2E8B3C",
+                    color: "#FFFFFF",
+                    fontSize: 16,
+                    fontWeight: 800,
+                    boxShadow: "none",
+                    "&:hover": {
+                      bgcolor: "#247531",
+                      boxShadow: "none",
+                    },
+                  }}
+                >
+                  元コンテンツを見る
+                </Button>
+
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{
+                    display: "block",
+                    mt: 0.75,
+                    textAlign: "center",
+                  }}
+                >
+                  {externalSource.name}の投稿を開きます
+                </Typography>
+              </Box>
+            )}
+
+            {/* 作成日 */}
             {recipe.createdAt && (
               <Typography
                 variant="caption"
                 color="text.secondary"
-                sx={{ display: "block", mt: 2 }}
+                sx={{
+                  display: "block",
+                  mt: 3,
+                }}
               >
-                作成日:{" "}
+                作成日：
                 {recipe.createdAt.toDate
-                  ? recipe.createdAt.toDate().toLocaleString()
+                  ? recipe.createdAt.toDate().toLocaleDateString("ja-JP")
                   : String(recipe.createdAt)}
               </Typography>
             )}
           </CardContent>
 
-          {/* フッターアクション */}
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              px: 2,
-              pb: 2,
-            }}
-          >
-            {isMine ? (
-              <Stack direction="row" spacing={1}>
+          {/* 編集・削除 */}
+          {isMine && (
+            <Box
+              sx={{
+                px: { xs: 2.5, sm: 4 },
+                pb: { xs: 2.5, sm: 4 },
+              }}
+            >
+              <Divider sx={{ mb: 2.5 }} />
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  onClick={() => router.push(`/recipes/edit/${recipe.id}`)}
+                  sx={{
+                    minHeight: 46,
+                    borderRadius: 999,
+                    bgcolor: "#FFB830",
+                    color: "#333333",
+                    fontWeight: 800,
+                    boxShadow: "none",
+                    "&:hover": {
+                      bgcolor: "#F5A900",
+                      boxShadow: "none",
+                    },
+                  }}
+                >
+                  レシピを編集する
+                </Button>
+
                 <Button
                   variant="outlined"
-                  onClick={() => router.push(`/recipes/edit/${recipe.id}`)}
+                  color="error"
+                  onClick={handleDelete}
+                  sx={{
+                    minHeight: 46,
+                    px: 3,
+                    borderRadius: 999,
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                  }}
                 >
-                  編集
-                </Button>
-                <Button variant="outlined" color="error" onClick={handleDelete}>
                   削除
                 </Button>
               </Stack>
-            ) : (
-              <Typography variant="caption" sx={{ ml: 1 }}>
-                閲覧のみ
-              </Typography>
-            )}
-            <Box />
-          </Box>
+            </Box>
+          )}
         </Card>
       </Box>
     </AppLayout>

@@ -30,6 +30,7 @@ import {
 } from "@mui/icons-material";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
+import { parseRecipeSource } from "@/features/recipes/utils/recipeSource";
 
 const MAX_TAGS = 4;
 
@@ -56,8 +57,8 @@ export default function EditRecipe() {
   // レシピ情報
   const [calories, setCalories] = useState("");
   const [cookingTime, setCookingTime] = useState("");
-  const [category, setCategory] = useState("main");
-  const [videoUrl, setVideoUrl] = useState("");
+  const [category, setCategory] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
 
   // ✅ 疲労モード用（Createと揃える）
   const [isMicrowave, setIsMicrowave] = useState(false);
@@ -71,6 +72,7 @@ export default function EditRecipe() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [sourceUrlError, setSourceUrlError] = useState("");
 
   // タグ追加可否
   const canAddTag = useMemo(() => {
@@ -138,8 +140,8 @@ export default function EditRecipe() {
             : "",
         );
 
-        setCategory(data.category || "main");
-        setVideoUrl(data.videoUrl || "");
+        setCategory(data.category || "");
+        setSourceUrl(data.sourceUrl || data.videoUrl || "");
 
         // ✅ タグ
         setSearchTags(
@@ -252,6 +254,7 @@ export default function EditRecipe() {
     if (!user) return;
 
     setErrorMsg("");
+    setSourceUrlError("");
 
     if (!recipeName.trim()) {
       setErrorMsg("レシピ名を入力してください");
@@ -263,19 +266,25 @@ export default function EditRecipe() {
         name: (i.name || "").trim(),
         quantity: (i.quantity || "").trim(),
       }))
-      .filter((i) => i.name && i.quantity);
+      .filter((i) => i.name);
 
     const validSeasonings = seasonings
       .map((s) => ({
         name: (s.name || "").trim(),
         quantity: (s.quantity || "").trim(),
       }))
-      .filter((s) => s.name && s.quantity);
+      .filter((s) => s.name);
 
-    if (validIngredients.length === 0) {
-      setErrorMsg("具材を1つ以上入力してください（例：鶏もも 200g）");
+    const parsedSource = parseRecipeSource(sourceUrl);
+
+    if (!parsedSource) {
+      setSourceUrlError(
+        "YouTube・YouTube Shorts・Instagramの投稿またはリールURLを入力してください。埋め込みコード・TikTokには対応していません。",
+      );
       return;
     }
+
+    const { sourceType, sourceUrl: normalizedSourceUrl } = parsedSource;
 
     try {
       setSaving(true);
@@ -290,8 +299,15 @@ export default function EditRecipe() {
 
         calories: calories ? Number(calories) : null,
         cookingTime: cookingTime ? Number(cookingTime) : null,
-        category,
-        videoUrl: videoUrl?.trim() ? videoUrl.trim() : null,
+        category: category || null,
+        sourceType: sourceType || "manual",
+        sourceUrl: normalizedSourceUrl || null,
+
+        // 既存のYouTube詳細表示との互換用
+        videoUrl:
+          sourceType === "youtube" && normalizedSourceUrl
+            ? normalizedSourceUrl
+            : null,
 
         // ✅ タグ
         searchTags: searchTags.slice(0, MAX_TAGS),
@@ -443,7 +459,7 @@ export default function EditRecipe() {
         {/* 具材 */}
         <Divider sx={{ my: 2 }} />
         <Typography variant="h6" mb={1} fontWeight={900}>
-          🥬 具材（必須）
+          🥬 具材（任意）
         </Typography>
 
         {ingredients.map((ingredient, index) => (
@@ -619,12 +635,22 @@ export default function EditRecipe() {
             disabled={saving}
           />
           <TextField
-            label="動画URL"
-            value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value)}
+            label="元コンテンツURL（任意）"
+            value={sourceUrl}
+            onChange={(e) => {
+              setSourceUrl(e.target.value);
+              if (sourceUrlError) {
+                setSourceUrlError("");
+              }
+            }}
             fullWidth
             disabled={saving}
-            placeholder="https://www.youtube.com/watch?v=..."
+            placeholder="https://www.instagram.com/p/..."
+            error={!!sourceUrlError}
+            helperText={
+              sourceUrlError ||
+              "YouTube・YouTube Shorts・Instagramの投稿・リールに対応"
+            }
           />
         </Stack>
 
