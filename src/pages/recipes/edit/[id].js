@@ -20,6 +20,7 @@ import {
   Chip,
   Divider,
   Alert,
+  Drawer,
   Collapse,
 } from "@mui/material";
 import {
@@ -63,6 +64,7 @@ export default function EditRecipe() {
 
   // どのカードを開いているか
   const [editingSection, setEditingSection] = useState(null);
+  const [ingredientDrawerOpen, setIngredientDrawerOpen] = useState(false);
 
   // タグ
   const [searchTags, setSearchTags] = useState([]);
@@ -144,7 +146,7 @@ export default function EditRecipe() {
         setSourceUrl(data.sourceUrl || data.videoUrl || "");
         setMemo(data.memo || "");
 
-        // ✅ タグ
+        //  タグ
         setSearchTags(
           Array.isArray(data.searchTags)
             ? data.searchTags
@@ -306,7 +308,7 @@ export default function EditRecipe() {
             ? normalizedSourceUrl
             : null,
 
-        // ✅ タグ
+        //  タグ
         searchTags: searchTags.slice(0, MAX_TAGS),
 
         updatedAt: serverTimestamp(),
@@ -328,6 +330,11 @@ export default function EditRecipe() {
       </Typography>
     );
   }
+  const ingredientCount = ingredients.filter((item) =>
+    item.name?.trim(),
+  ).length;
+
+  const seasoningCount = seasonings.filter((item) => item.name?.trim()).length;
 
   return (
     <AppLayout title="レシピ編集" activeNav="recipes">
@@ -447,112 +454,73 @@ export default function EditRecipe() {
           )}
         </Stack>
 
-        {/* 具材 */}
-        <Divider sx={{ my: 2 }} />
-        <Typography variant="h6" mb={1} fontWeight={900}>
-          🥬 具材（任意）
-        </Typography>
-
-        {ingredients.map((ingredient, index) => (
-          <Stack
-            key={`ing-${index}`}
-            direction="row"
-            spacing={1.5}
-            alignItems="center"
-            sx={{ mb: 1.5 }}
-          >
-            <TextField
-              label="具材名"
-              variant="outlined"
-              fullWidth
-              value={ingredient.name}
-              onChange={(e) =>
-                handleIngredientChange(index, "name", e.target.value)
-              }
-              disabled={saving}
-            />
-            <TextField
-              label="量"
-              variant="outlined"
-              fullWidth
-              value={ingredient.quantity}
-              onChange={(e) =>
-                handleIngredientChange(index, "quantity", e.target.value)
-              }
-              disabled={saving}
-            />
-            <IconButton
-              color="error"
-              onClick={() => handleRemoveIngredient(index)}
-              disabled={saving || ingredients.length === 1}
-            >
-              <RemoveCircleOutline />
-            </IconButton>
-          </Stack>
-        ))}
-
-        <Button
-          variant="outlined"
-          startIcon={<AddCircleOutline />}
-          onClick={handleAddIngredient}
-          sx={{ mb: 2 }}
-          disabled={saving}
+        <Box
+          sx={{
+            mb: 2,
+            border: "1px solid #E7E1D8",
+            borderRadius: 3,
+            bgcolor: "#FFFFFF",
+          }}
         >
-          具材を追加
-        </Button>
-
-        {/* 調味料 */}
-        <Typography variant="h6" mb={1} fontWeight={900}>
-          🧂 調味料（任意）
-        </Typography>
-
-        {seasonings.map((seasoning, index) => (
           <Stack
-            key={`sea-${index}`}
             direction="row"
-            spacing={1.5}
             alignItems="center"
-            sx={{ mb: 1.5 }}
+            justifyContent="space-between"
+            sx={{ p: 2 }}
           >
-            <TextField
-              label="調味料名"
-              variant="outlined"
-              fullWidth
-              value={seasoning.name}
-              onChange={(e) =>
-                handleSeasoningChange(index, "name", e.target.value)
-              }
-              disabled={saving}
-            />
-            <TextField
-              label="量"
-              variant="outlined"
-              fullWidth
-              value={seasoning.quantity}
-              onChange={(e) =>
-                handleSeasoningChange(index, "quantity", e.target.value)
-              }
-              disabled={saving}
-            />
-            <IconButton
-              color="error"
-              onClick={() => handleRemoveSeasoning(index)}
-              disabled={saving || seasonings.length === 1}
-            >
-              <RemoveCircleOutline />
-            </IconButton>
-          </Stack>
-        ))}
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: "#333333",
+                }}
+              >
+                食材
+              </Typography>
 
-        <Button
-          variant="outlined"
-          startIcon={<AddCircleOutline />}
-          onClick={handleAddSeasoning}
-          sx={{ mb: 2 }}
-          disabled={saving}
-        >
-          調味料を追加
-        </Button>
+              <Typography
+                variant="body2"
+                sx={{
+                  mt: 0.5,
+                  color: "#777777",
+                }}
+              >
+                買い物リストや冷蔵庫管理に使います
+              </Typography>
+
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  mt: 0.75,
+                  color:
+                    ingredientCount + seasoningCount > 0
+                      ? "#2E7D32"
+                      : "#FF8A00",
+                  fontWeight: 700,
+                }}
+              >
+                {ingredientCount + seasoningCount > 0
+                  ? `食材${ingredientCount}件・調味料${seasoningCount}件`
+                  : "未登録"}
+              </Typography>
+            </Box>
+
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setIngredientDrawerOpen(true)}
+              disabled={saving}
+              sx={{
+                borderRadius: 999,
+                fontWeight: 700,
+              }}
+            >
+              {ingredientCount + seasoningCount > 0 ? "編集" : "＋ 追加"}
+            </Button>
+          </Stack>
+        </Box>
 
         <Box
           sx={{
@@ -730,6 +698,202 @@ export default function EditRecipe() {
           </Button>
         </Box>
       </Paper>
+      <Drawer
+        anchor="right"
+        open={ingredientDrawerOpen}
+        onClose={() => setIngredientDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            width: {
+              xs: "100%",
+              sm: 480,
+            },
+            p: 3,
+          },
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
+          }}
+        >
+          <Box sx={{ mb: 3 }}>
+            <Typography
+              sx={{
+                fontSize: 20,
+                fontWeight: 800,
+                color: "#333333",
+              }}
+            >
+              食材を編集
+            </Typography>
+
+            <Typography
+              variant="body2"
+              sx={{
+                mt: 0.5,
+                color: "#777777",
+              }}
+            >
+              食材と調味料をまとめて編集できます
+            </Typography>
+          </Box>
+
+          <Box sx={{ flex: 1, overflowY: "auto" }}>
+            <Typography
+              sx={{
+                mb: 1.5,
+                fontWeight: 800,
+              }}
+            >
+              食材
+            </Typography>
+
+            {ingredients.map((ingredient, index) => (
+              <Stack
+                key={`ing-${index}`}
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{ mb: 1.5 }}
+              >
+                <TextField
+                  label="食材名"
+                  size="small"
+                  fullWidth
+                  value={ingredient.name}
+                  onChange={(e) =>
+                    handleIngredientChange(index, "name", e.target.value)
+                  }
+                  disabled={saving}
+                />
+
+                <TextField
+                  label="量"
+                  size="small"
+                  value={ingredient.quantity}
+                  onChange={(e) =>
+                    handleIngredientChange(index, "quantity", e.target.value)
+                  }
+                  sx={{ width: 130 }}
+                  disabled={saving}
+                />
+
+                <IconButton
+                  color="error"
+                  onClick={() => handleRemoveIngredient(index)}
+                  disabled={saving || ingredients.length === 1}
+                >
+                  <RemoveCircleOutline />
+                </IconButton>
+              </Stack>
+            ))}
+
+            <Button
+              variant="outlined"
+              startIcon={<AddCircleOutline />}
+              onClick={handleAddIngredient}
+              disabled={saving}
+              sx={{ mb: 4 }}
+            >
+              食材を追加
+            </Button>
+
+            <Typography
+              sx={{
+                mb: 1.5,
+                fontWeight: 800,
+              }}
+            >
+              調味料
+            </Typography>
+
+            {seasonings.map((seasoning, index) => (
+              <Stack
+                key={`sea-${index}`}
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{ mb: 1.5 }}
+              >
+                <TextField
+                  label="調味料名"
+                  size="small"
+                  fullWidth
+                  value={seasoning.name}
+                  onChange={(e) =>
+                    handleSeasoningChange(index, "name", e.target.value)
+                  }
+                  disabled={saving}
+                />
+
+                <TextField
+                  label="量"
+                  size="small"
+                  value={seasoning.quantity}
+                  onChange={(e) =>
+                    handleSeasoningChange(index, "quantity", e.target.value)
+                  }
+                  sx={{ width: 130 }}
+                  disabled={saving}
+                />
+
+                <IconButton
+                  color="error"
+                  onClick={() => handleRemoveSeasoning(index)}
+                  disabled={saving || seasonings.length === 1}
+                >
+                  <RemoveCircleOutline />
+                </IconButton>
+              </Stack>
+            ))}
+
+            <Button
+              variant="outlined"
+              startIcon={<AddCircleOutline />}
+              onClick={handleAddSeasoning}
+              disabled={saving}
+            >
+              調味料を追加
+            </Button>
+          </Box>
+
+          <Box
+            sx={{
+              pt: 2,
+              mt: 2,
+              borderTop: "1px solid #EEE8DF",
+            }}
+          >
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={() => setIngredientDrawerOpen(false)}
+              sx={{
+                minHeight: 48,
+                borderRadius: 999,
+                fontWeight: 800,
+              }}
+            >
+              編集を終える
+            </Button>
+
+            <Typography
+              variant="caption"
+              sx={{
+                display: "block",
+                mt: 1,
+                textAlign: "center",
+                color: "#888888",
+              }}
+            >
+              変更内容は画面下の「更新する」で保存されます
+            </Typography>
+          </Box>
+        </Box>
+      </Drawer>
     </AppLayout>
   );
 }
